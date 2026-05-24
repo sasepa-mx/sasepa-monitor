@@ -3,257 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SASEPA | Alertas Críticas</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=700;800&display=swap" rel="stylesheet">
-    
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
+    <title>SASEPA - Sitio en Mantenimiento</title>
+    <link rel="icon" type="image/png" href="SASEPA.png">
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #020617; color: #f8fafc; }
-        .glass { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .severe-blink { animation: bg-severe 1s steps(1, linear) infinite; }
-        @keyframes bg-severe { 0%, 100% { background-color: #991b1b; } 50% { background-color: #dc2626; } }
+        :root {
+            --primary: #1a1a1a;
+            --accent: #d32f2f;
+            --text: #333;
+            --bg: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        .maintenance-wrapper {
+            max-width: 600px;
+            padding: 2rem;
+        }
+
+        .logo-placeholder {
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+        }
+
+        .status-line {
+            width: 50px;
+            height: 4px;
+            background-color: var(--accent);
+            margin: 0 auto 2rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+        }
+
+        p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 2rem;
+        }
+
+        .info-box {
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .footer-note {
+            margin-top: 3rem;
+            font-size: 0.8rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Animación sutil de pulso */
+        .pulse {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: var(--accent);
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse-animation 2s infinite;
+        }
+
+        @keyframes pulse-animation {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(211, 47, 47, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
+        }
     </style>
 </head>
-<body class="antialiased min-h-screen flex flex-col items-center justify-center p-4">
+<body>
 
-    <div id="ui-monitor" class="w-full max-w-md glass rounded-[2.5rem] p-8 text-center shadow-2xl">
-        <img src="SASEPA.png" alt="Logo" class="w-20 h-20 mx-auto mb-4 rounded-3xl border-2 border-white/10">
-        <h1 class="text-3xl font-extrabold mb-4 tracking-tighter italic">SASEPA<span class="text-blue-500 underline"> Alertas </span></h1>
-        <button onclick="activarSistema()" id="btn-master" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition-all shadow-xl mb-4">
-            Activar Alertas Críticas
-        </button>
-        <div id="status" class="text-[9px] font-mono text-slate-500 uppercase tracking-widest">Listo</div>
+    <div class="maintenance-wrapper">
+        <div class="logo-placeholder">SASEPA</div>
+        <div class="status-line"></div>
         
-        <div class="mt-6 w-full glass rounded-3xl p-5 border border-white/5 text-left">
-            <div class="flex justify-between items-center mb-3 text-[10px] font-bold text-blue-400">
-                <span>MONITOR MULTI-ALERTA</span>
-                <span id="countdown">5s</span>
-            </div>
-            <p id="alert-zone" class="text-slate-400 text-xs italic leading-relaxed">Esperando activación y permisos...</p>
-            <p id="geo-status" class="text-slate-500 text-[10px] font-mono mt-2 uppercase tracking-tight"></p>
+        <h1>Estamos actualizando nuestra infraestructura</h1>
+        
+        <p>La plataforma digital de alertamiento sísmico se encuentra en mantenimiento programado para optimizar la velocidad de respuesta y la estabilidad de las notificaciones.</p>
+        
+        <div class="info-box">
+            <span class="pulse"></span>
+            <strong>Estado:</strong> Los sistemas de monitoreo internos siguen operando. Solo la interfaz web está temporalmente fuera de servicio.
+        </div>
+
+        <div class="footer-note">
+            SASEPA - Plataforma Digital de Alertamiento Sísmico
         </div>
     </div>
 
-
-    <div id="pantalla-alerta" class="hidden fixed inset-0 severe-blink z-50 flex flex-col items-center justify-between p-8 text-white select-none">
-        
-        <div class="text-center mt-6">
-            <span class="text-xl font-bold tracking-widest opacity-80 uppercase">ALERTA CRÍTICA SASEPA</span>
-        </div>
-
-        <div class="text-center flex flex-col items-center justify-center flex-1 max-w-4xl w-full">
-            <div class="mb-4 text-amber-400 text-7xl animate-bounce">⚠️</div>
-            
-            <h2 class="text-5xl md:text-7xl font-black uppercase tracking-tight mb-2">Alerta Sísmica</h2>
-            <p class="text-xl md:text-2xl font-extrabold tracking-wide uppercase bg-black/40 px-6 py-2 rounded-full mb-8 text-red-200">
-                Sentirás Sismo FUERTE en:
-            </p>
-
-            <div class="mb-2">
-                <span class="text-[12px] uppercase font-bold tracking-widest opacity-70 block mb-1">Tiempo de arribo estimado</span>
-                <div class="text-8xl md:text-9xl font-black font-mono tracking-tighter" id="severe-timer">--s</div>
-            </div>
-
-            <div class="mt-6 bg-black/50 border border-white/20 rounded-2xl px-8 py-4 max-w-2xl text-center shadow-2xl backdrop-blur-sm space-y-1">
-                <p class="text-lg md:text-xl font-bold" id="severe-detalles">Posible Epicentro: Cargando...</p>
-                <p class="text-xs font-mono text-amber-300 uppercase tracking-wider" id="severe-distancia"></p>
-            </div>
-        </div>
-
-        <div class="mb-6 w-full max-w-xs">
-            <button onclick="detenerAlerta()" class="w-full bg-white text-red-700 hover:bg-neutral-100 font-black py-4 px-8 rounded-full shadow-2xl transition-all text-lg uppercase tracking-wider">
-                Detener Alarma
-            </button>
-            <span class="text-[10px] font-mono text-center block mt-3 opacity-50">SASEPA - Aviso Crítico</span>
-        </div>
-    </div>
-
-    <script>
-        const ARCHIVO_AUDIO_SEVERE = 'alerta.mp3'; 
-        const siren = new Audio(ARCHIVO_AUDIO_SEVERE);
-        siren.loop = false; 
-        let userLat = 19.4326;
-        let userLng = -99.1332;
-
-        let ultimaAlertaId = null;
-        let lastSyncTime = null;
-        let countdownInterval = null;
-        let swRegistration = null;
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(reg => {
-                swRegistration = reg;
-            });
-        }
-
-        async function activarSistema() {
-            await Notification.requestPermission();
-            siren.play().then(() => { siren.pause(); siren.currentTime = 0; }).catch(e => console.log("Audio listo."));
-
-            document.getElementById('btn-master').innerText = "VIGILANCIA ACTIVA";
-            document.getElementById('btn-master').className = "w-full bg-green-600 text-white font-black py-5 rounded-2xl pointer-events-none";
-            
-            document.getElementById('status').innerText = "ONLINE 🟢";
-            iniciarContadorVisual();
-
-            solicitarUbicacion();
-        }
-
-        function solicitarUbicacion() {
-            const geoStatus = document.getElementById('geo-status');
-            if (!navigator.geolocation) {
-                geoStatus.innerText = "📍 Geo: No soportado. Usando CDMX por defecto.";
-                iniciarEscuchaSismos();
-                return;
-            }
-
-            geoStatus.innerText = "📍 Solicitando ubicación del dispositivo...";
-            
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    userLat = position.coords.latitude;
-                    userLng = position.coords.longitude;
-                    geoStatus.innerText = `📍 Ubicación Activa: [${userLat.toFixed(4)}, ${userLng.toFixed(4)}]`;
-                    iniciarEscuchaSismos();
-                },
-                (error) => {
-                    console.warn("Ubicación denegada o fallida. Se establece CDMX por defecto.");
-                    geoStatus.innerText = "📍 Ubicación Denegada. Predeterminada: CDMX.";
-                    iniciarEscuchaSismos();
-                },
-                { enableHighAccuracy: true, timeout: 5000 }
-            );
-        }
-
-        function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c; 
-        }
-
-        function ejecutarNuevaAlerta(datos, esValido) {
-            document.getElementById('pantalla-alerta').classList.remove('hidden');
-            document.getElementById('ui-monitor').classList.add('opacity-0');
-
-            const zonaSismo = datos.zona || "Epicentro No Especificado";
-            const avisoSismo = datos.aviso || "Alerta Sísmica";
-
-            const epiLat = parseFloat(datos.lat);
-            const epiLng = parseFloat(datos.lon);
-
-            let segundosAnticipacion = 0;
-            let distanciaKm = 0;
-
-            if (!isNaN(epiLat) && !isNaN(epiLng)) {
-                distanciaKm = calcularDistanciaKm(userLat, userLng, epiLat, epiLng);
-                segundosAnticipacion = Math.round(distanciaKm / 4.0);
-                if (segundosAnticipacion < 0) segundosAnticipacion = 0;
-                
-                document.getElementById('severe-distancia').innerText = `Distancia: ${distanciaKm.toFixed(1)} km`;
-            } else {
-                segundosAnticipacion = 60;
-                document.getElementById('severe-distancia').innerText = "Distancia matemática no calculable.";
-            }
-
-            document.getElementById('severe-timer').innerText = `${segundosAnticipacion}s`;
-            document.getElementById('severe-detalles').innerText = `Posible Epicentro: [${zonaSismo}]`;
-
-            const msgPush = `¡🚨 ALERTA CRÍTICA! Por sismo en: ${zonaSismo}`;
-            if (swRegistration && Notification.permission === 'granted') {
-                swRegistration.showNotification("🔔 Evento Mayor", {
-                    body: msgPush,
-                    icon: 'SASEPA.png',
-                    requireInteraction: true,
-                    tag: 'alerta-critica'
-                });
-            }
-
-            siren.play().catch(err => console.error("Error al reproducir audio:", err));
-
-            let tiempoRestante = segundosAnticipacion;
-            if (countdownInterval) clearInterval(countdownInterval);
-            countdownInterval = setInterval(() => {
-                tiempoRestante--;
-                if (tiempoRestante <= 0) {
-                    document.getElementById('severe-timer').innerText = "0s";
-                    clearInterval(countdownInterval);
-                } else {
-                    document.getElementById('severe-timer').innerText = `${tiempoRestante}s`;
-                }
-            }, 1000);
-        }
-
-        function detenerAlerta() {
-            siren.pause();
-            siren.currentTime = 0;
-            if (countdownInterval) clearInterval(countdownInterval);
-            
-            document.getElementById('pantalla-alerta').classList.add('hidden');
-            document.getElementById('ui-monitor').classList.remove('opacity-0');
-        }
-
-        function iniciarContadorVisual() {
-            let count = 5;
-            setInterval(() => {
-                count--;
-                if (count < 0) count = 5;
-                document.getElementById('countdown').innerText = count + "s";
-            }, 1000);
-        }
-
-        function iniciarEscuchaSismos() {
-            if (typeof mqtt === 'undefined') return;
-
-            const hostSeguro = '0d0724ae358247cfb3fc53fcabe61af3.s1.eu.hivemq.cloud'; 
-            const opciones = {
-                protocol: 'wss',                                      
-                host: hostSeguro,
-                port: 8884,                                   
-                path: '/mqtt',                                   
-                clientId: 'SASEPA_Monitor_' + Math.random().toString(16).substr(2, 8),
-                clean: true,
-                connectTimeout: 5000,
-                username: 'sasepa_publico',                     
-                password: 'CualEsLaPincheContraseña123', 
-                rejectUnauthorized: false                     
-            };
-
-            const clienteMQTT = mqtt.connect(opciones);
-
-            clienteMQTT.on('connect', () => {
-                document.getElementById('alert-zone').innerText = "Monitorenado Alertas. Conexión con la central monitor.sasepa.online establecida.";
-                clienteMQTT.subscribe('sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g', { qos: 0 });
-            });
-
-            clienteMQTT.on('message', (topic, message) => {
-                try {
-                    const d = JSON.parse(message.toString());
-                    if (!d) return;
-                    let intensidadRecibida = d.intensidad ? d.intensidad.toString().toUpperCase() : "";
-                    if (!intensidadRecibida.includes("FUERTE") && !intensidadRecibida.includes("SEVERE")) {
-                        console.log(`Sismo ignorado en el monitor. Intensidad menor: ${d.intensidad}`);
-                        return; 
-                    }
-                    const fechaID = d.fecha || new Date().toISOString().slice(0,10);
-                    const id = `${fechaID}|${d.zona || 'gen'}|${d.timestamp_inicio || ''}`;
-                    
-                    if (ultimaAlertaId === id) return;
-                    ultimaAlertaId = id;
-                    lastSyncTime = Date.now();
-                    ejecutarNuevaAlerta(d, true);
-
-                } catch (error) {
-                    console.error("Error al procesar payload MQTT:", error);
-                }
-            });
-        }
-    </script>
 </body>
 </html>
