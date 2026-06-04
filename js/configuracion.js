@@ -226,7 +226,7 @@ function inicializarMapa() {
             style: 'mapbox://styles/mapbox/navigation-night-v1',
             center: [-98.8525, 17.8322],
             zoom: 5.8,
-            interactive: true, 
+            interactive: false, 
             attributionControl: false
         });
         mapUltimo.addControl(new mapboxgl.NavigationControl(), 'top-left');
