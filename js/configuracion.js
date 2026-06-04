@@ -1332,7 +1332,8 @@ async function mostrarAppMonitor() {
             agente: navigator.userAgent
         };
         cliente_mqtt.publish('sasepa/monitor/accesos', JSON.stringify(datosAcceso), { qos: 0 });
-    }}
+    }
+}
 }
 function verificarTerminos() {
     if (localStorage.getItem('terminos_aceptados') === 'true') {
