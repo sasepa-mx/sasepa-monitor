@@ -1,5 +1,4 @@
 // ©️ SASEPAMx Derechos Reservados Prohibida su copia total o parcial sin autorización expresa
-
 var listaHistorial = [];
 var CONFIG_AUDIOS = {
     alertas: true,   
@@ -40,7 +39,6 @@ let dvrTiempoInicioSismo = null;
 let dvrGrabandoSismo = false;
 const VELOCIDAD_P = 6.0; 
 const VELOCIDAD_S = 3.5;
-
 try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('sasepa_historial')) {
         listaHistorial = JSON.parse(localStorage.getItem('sasepa_historial')) || [];
@@ -48,7 +46,6 @@ try {
 } catch (e) { 
     listaHistorial = []; 
 }
-
 const pulsingDot = {
     width: 100, 
     height: 100, 
@@ -86,7 +83,6 @@ const pulsingDot = {
         return true;
     }
 };
-
 const ciudadesSasmexBase = [
     { id: 0, idTicker: "CMC", nombre: "Morelia", lat: 19.7006, lon: -101.1864 },
     { id: 1, idTicker: "CEMX", nombre: "CDMX", lat: 19.4326, lon: -99.1332 },
@@ -98,12 +94,10 @@ const ciudadesSasmexBase = [
     { id: 7, idTicker: "CGR1", nombre: "Acapulco", lat: 16.8531, lon: -99.8237 },
     { id: 8, idTicker: "CCL", nombre: "Colima", lat: 19.2433, lon: -103.7247 }
 ];
-
 function toggleMenuAudio() {
     const menu = document.getElementById('menu-config-audio');
     menu.style.display = (menu.style.display === 'none') ? 'block' : 'none';
 }
-
 function actualizarCanalesAudio() {
     const chkAlertas = document.getElementById('check-audio-alertas');
     const chkIntensidades = document.getElementById('check-audio-intensidades');
@@ -127,7 +121,25 @@ function actualizarCanalesAudio() {
         sonidoActivado = true;
     }
 }
-
+function activarProteccion(uid) {
+    db.collection("usuarios").doc(uid).onSnapshot((snapshot) => {
+        const data = snapshot.data();
+        if (!data) return; 
+        const tokenLocal = localStorage.getItem("sasepa_token");
+        if (data.sesionActiva !== tokenLocal) {
+            localStorage.setItem("sasepa_token", data.sesionActiva);
+        }
+    });
+}
+async function manejarLoginExitoso(user) {
+    const nuevoToken = Math.random().toString(36).substr(2, 9);
+    await db.collection("usuarios").doc(user.uid).update({
+        sesionActiva: nuevoToken
+    });
+    localStorage.setItem("sasepa_token", nuevoToken);
+    activarProteccion(user.uid);
+    mostrarAppMonitor();
+}
 function toggleLeyenda() {
     const leyenda = document.querySelector('.leyenda');
     const btn = document.getElementById('btn-leyenda');
@@ -160,7 +172,6 @@ function toggleLeyenda() {
         spans.forEach(s => s.style.fontSize = estaOculto ? "12px" : "11px");
     }
 }
-
 function inicializarMapa() {
     if (!mapboxgl.accessToken) {
         if (window.MAPBOX_ACCESS_TOKEN) {
@@ -234,7 +245,7 @@ function inicializarMapa() {
             });
             const colorLogic = [
                 'case',
-                'boolean', ['feature-state', 'reportando'], false], '#00d4ff',
+                ['boolean', ['feature-state', 'reportando'], false], '#00d4ff',
                 ['!=', ['feature-state', 'color'], null], ['feature-state', 'color'],
                 ['get', 'color']
             ];
@@ -278,7 +289,6 @@ function inicializarMapa() {
     });
     mapUltimo.on('mouseleave', 'layer-sensores-alerta', () => { mapUltimo.getCanvas().style.cursor = ''; popupSensores.remove(); });
 }
-
 function reinstalarCapasOndas() {
     if (!mapUltimo) return;
     if (!mapUltimo.getSource('ondas')) {
@@ -313,7 +323,6 @@ function reinstalarCapasOndas() {
         });
     }
 }
-
 function cambiarEstiloMapa(nuevoEstiloURL) {
     if (!mapUltimo) return;
     mapUltimo.setStyle(nuevoEstiloURL);
@@ -324,7 +333,6 @@ function cambiarEstiloMapa(nuevoEstiloURL) {
         }
     });
 }
-
 function crearCirculo(centro, radioKm) {
     const puntos = 64; 
     const kmEnGrados = 1 / 110.574; 
@@ -338,7 +346,6 @@ function crearCirculo(centro, radioKm) {
     ret.push(ret[0]);
     return [ret];
 }
-
 function calcularDistancia(lat1, lon1, lat2, lon2) {
     if (lat1 === 0 || lon1 === 0 || lat2 === 0 || lon2 === 0) {
         return 999999;
@@ -353,7 +360,6 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 }
-
 function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     const intInput = (d.intensidad || "").toUpperCase();
     let esSeveroVisual = (intInput.includes("SEVERO") || intInput.includes("SEVERE"));
@@ -574,7 +580,6 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     window.timeoutCierre = setTimeout(() => { detenerAlerta(); window.intervaloETA = null; }, 500000);
     window.timeoutCierreSismoDos = setTimeout(() => { resetearSensores(); }, 500000);
 }
-
 function actualizarCirculosCiudades(latEpi, lonEpi, intensidadGeneral) {
     if (!mapUltimo) return;
     let cuadro = document.getElementById('cuadro-ciudades');
@@ -659,7 +664,6 @@ function actualizarCirculosCiudades(latEpi, lonEpi, intensidadGeneral) {
         }
     }, 300000);
 }
-
 function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
     if (!mapa || !mapa.getSource('ondas')) return;
     window.colorOndaSActualPersistente = colorS;
@@ -770,12 +774,10 @@ function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
         }
     }, 100);
 }
-
 function float(val) {
     const n = parseFloat(val);
     return isNaN(n) ? 0 : n;
 }
-
 function actualizarMarcadorEpicentro(lat, lon, intensidadOrigen) {
     if (!mapUltimo) return;
 
@@ -811,7 +813,6 @@ function actualizarMarcadorEpicentro(lat, lon, intensidadOrigen) {
         mapUltimo.setPaintProperty('layer-epicentro-punto', 'circle-color', colorEpicentro);
     }
 }
-
 function lanzarPruebaSasepa() {
     const menuViejo = document.getElementById('sasepa-sim-menu');
     if (menuViejo) menuViejo.remove();
@@ -902,7 +903,7 @@ function lanzarPruebaSasepa() {
             <h4 style="margin: 0 0 6px 0; font-size: 14px; color: #00bcff; text-transform: uppercase; letter-spacing: 1px;">Estación Detectada</h4>
             <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px; margin-bottom: 14px; border: 1px solid rgba(255,255,255,0.05); font-size: 12px; text-align: left;">
                 <div style="margin-bottom: 4px;"><span style="color: #888;">Sensor:</span> <b style="color: #fff;">${sensorMasCercano.nombre}</b></div>
-                <div style="margin-bottom: 4px;"><span style="color: #888;">Región:</span> <span style="color: #fff;">${zonaIdentificada}</span></div>
+                <div style="margin-bottom: 4px;"><span style="color: #888;">Región:</span> <span style="color: #fff;">${zonaIdentified = zonaIdentificada}</span></div>
                 <div><span style="color: #888;">Coord:</span> <span style="color: #00ffaa;">${sensorMasCercano.lat.toFixed(4)}, ${sensorMasCercano.lon.toFixed(4)}</span></div>
             </div>
             
@@ -952,7 +953,10 @@ function lanzarPruebaSasepa() {
         }
     });
 }
-
+function float(val) {
+    const n = parseFloat(val);
+    return isNaN(n) ? 0 : n;
+}
 function toggleUI() {
     const barraControles = document.querySelector('.contenedor-controles-manuales');
     const contenedorLogos = document.querySelector('.contenedor-logos-fondo');
@@ -985,7 +989,6 @@ function toggleUI() {
         contador.style.opacity = estaOculto ? "0" : "1";
     }
 }
-
 function detenerAlerta() {
     const banner = document.getElementById('alert-container');
     const bannerBg = document.getElementById('banner-bg');
@@ -1013,7 +1016,6 @@ function detenerAlerta() {
     const panicOverlay = document.getElementById('panic-overlay');
     if (panicOverlay) panicOverlay.remove();
 }
-
 function agregarAlHistorial(ev) {
     if (!Array.isArray(listaHistorial)) {
         listaHistorial = [];
@@ -1036,7 +1038,6 @@ function agregarAlHistorial(ev) {
     
     renderizarHistorial();
 }
-
 function togglePuntosHistorial() {
     if (!mapUltimo) return;
 
@@ -1125,7 +1126,6 @@ function togglePuntosHistorial() {
         }
     }
 }
-
 function monitoreoServicio() {
     setInterval(() => {
         const el = document.getElementById('uptime');
@@ -1144,7 +1144,6 @@ function monitoreoServicio() {
         latEl.textContent = '🟢 ONLINE'; 
     }
 }
-
 function reporteMasivoCiudades(tiempoLimpieza = 10000) {
     if (!mapUltimo || bloqueoPorAlerta) return;
 
@@ -1228,7 +1227,6 @@ function reporteMasivoCiudades(tiempoLimpieza = 10000) {
         }
     }, delayAcumulado + tiempoLimpieza);
 }
-
 function animarReporteSensor(idSensor, duracion = 10000) { 
     if (!mapUltimo || bloqueoPorAlerta) return; 
 
@@ -1259,7 +1257,6 @@ function animarReporteSensor(idSensor, duracion = 10000) {
         }
     }, duracion); 
 }
-
 function reporteInicialSensores() {
     if (!window.MIS_SENSORES || window.MIS_SENSORES.length === 0) return;
 
@@ -1280,7 +1277,6 @@ function reporteInicialSensores() {
         }, index * 150); 
     });
 }
-
 function limpiarReportesDeSensoresParaAlerta() {
     if (window.timerReporteGlobal) {
         clearTimeout(window.timerReporteGlobal);
@@ -1312,7 +1308,6 @@ function limpiarReportesDeSensoresParaAlerta() {
     const tickerEl = document.getElementById('ticker-text');
     if (tickerEl) tickerEl.innerHTML = "";
 }
-
 async function mostrarAppMonitor() {
     const app = document.getElementById('app-content');
     if (app) app.style.display = 'block';
@@ -1330,7 +1325,6 @@ async function mostrarAppMonitor() {
         if(mapUltimo) mapUltimo.resize(); 
     }, 1000);
 }
-
 function verificarTerminos() {
     if (localStorage.getItem('terminos_aceptados') === 'true') {
         if (document.getElementById('modal-terminos')) {
@@ -1342,7 +1336,6 @@ function verificarTerminos() {
         document.getElementById('modal-terminos').style.display = 'flex';
     }
 }
-
 async function aceptarTerminos() {
     localStorage.setItem('terminos_aceptados', 'true');
     document.getElementById('modal-terminos').style.display = 'none';
@@ -1356,7 +1349,6 @@ async function aceptarTerminos() {
 
     await iniciarDVRSASEPA();
 }
-
 function crearBotonConectarDVR() {
     const login = document.getElementById('login-screen');
     if (login) login.style.display = 'none';
@@ -1393,7 +1385,6 @@ function crearBotonConectarDVR() {
         mostrarAppMonitor();
     };
 }
-
 function toggleAudioSasepa() {
     const icono = document.getElementById('icono-audio');
     const boton = document.getElementById('btn-toggle-audio');
@@ -1410,7 +1401,6 @@ function toggleAudioSasepa() {
         console.log("🔇 Sonido SASEPA: Silenciado");
     }
 }
-
 function iniciarEscuchaSismos() {
     if (typeof mqtt === 'undefined') return;
 
@@ -1418,14 +1408,14 @@ function iniciarEscuchaSismos() {
     const opciones = {
         protocol: 'wss',                                          
         host: hostSeguro,
-        port: 8884,                                            
+        port: 8884,                                           
         path: '/mqtt',                                        
         clientId: 'SASEPA_Monitor_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
-        username: 'sasepa_publico',                      
+        username: 'sasepa_publico',                     
         password: 'CualEsLaPincheContraseñaSASMEXxd123', 
-        rejectUnauthorized: false                      
+        rejectUnauthorized: false                     
     };
     
     const clienteMQTT = mqtt.connect(opciones);
@@ -1500,7 +1490,6 @@ function iniciarEscuchaSismos() {
     clienteMQTT.on('error', (err) => { console.error("MQTT Error:", err); });
     clienteMQTT.on('close', () => { console.warn("MQTT Cerrado"); });
 }
-
 async function limpiarAudios() {
     if (window.audioContext && window.audioContext.state !== 'closed') {
         await window.audioContext.suspend(); 
@@ -1510,8 +1499,8 @@ async function limpiarAudios() {
         audio.pause();
         audio.currentTime = 0;
     });
-}
 
+}
 async function resetTotalMapa() {
     if (window.audioContext) {
         await window.audioContext.suspend();
@@ -1553,7 +1542,6 @@ async function resetTotalMapa() {
         }
     }
 }
-
 async function resetearSensores() {
     if (typeof ultimaAlertaId !== 'undefined') {
         ultimaAlertaId = null; 
@@ -1613,7 +1601,6 @@ async function resetearSensores() {
         }
     }
 }
-
 function CapturarPantalla() {
     if (typeof html2canvas === 'undefined') {
         const script = document.createElement('script');
@@ -1640,7 +1627,6 @@ function CapturarPantalla() {
             const horaFormato = ahora.toTimeString().slice(0,8).replace(/:/g, '-');
             const nombreArchivo = `SASEPA_Reporte_${fechaFormato}_${horaFormato}.png`;
             const enlaceDescarga = document.createElement('a');
-            const enlaceDescarga = document.createElement('a');
             enlaceDescarga.href = imagenData;
             enlaceDescarga.download = nombreArchivo;
             document.body.appendChild(enlaceDescarga);
@@ -1651,7 +1637,6 @@ function CapturarPantalla() {
         });
     }
 }
-
 function abrirConfiguracion() {
     const leyenda = document.querySelector('.leyenda');
     if (leyenda) {
@@ -1670,7 +1655,6 @@ function abrirConfiguracion() {
         }
     }
 }
-
 function iniciarReloj() {
     function actualizar() {
         const ahora = new Date();
@@ -1685,7 +1669,6 @@ function iniciarReloj() {
     setInterval(actualizar, 1000);
     actualizar();
 }
-
 function renderizarHistorial() {
     const target = document.getElementById('lista-historial-content');
     if (!target) return;
@@ -1719,13 +1702,11 @@ function renderizarHistorial() {
         target.appendChild(item);
     });
 }
-
 function cerrarHistorial() {
     const capa = document.getElementById('capa-lista-historial');
     if (capa) capa.style.display = 'none';
     if (mapUltimo) mapUltimo.resize();
 }
-
 function mostrarUbicacionUsuario() {
     if (!mapUltimo) return;
     navigator.geolocation.getCurrentPosition(pos => {
@@ -1744,7 +1725,6 @@ function mostrarUbicacionUsuario() {
         establecerUbicacionDefault();
     }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
 }
-
 function establecerUbicacionDefault() {
     if (!mapUltimo) return;
     userCoords = [-99.1332, 19.4326]; 
@@ -1766,12 +1746,10 @@ function establecerUbicacionDefault() {
         window.timerTicker = setTimeout(() => { tickerEl.innerHTML = ""; }, 5000);
     }
 }
-
 function cerrarPromptExe() {
     const el = document.getElementById('sasepa-prompt-container');
     if (el) el.remove();
 }
-
 function procesarUbicacionExe() {
     const input = document.getElementById('prompt-exe-input');
     if (input) {
@@ -1782,7 +1760,6 @@ function procesarUbicacionExe() {
         }
     }
 }
-
 function ejecutarGeocodingDirecto(query) {
     if (!mapUltimo) return;
     const token = mapboxgl.accessToken;
@@ -1813,7 +1790,6 @@ function ejecutarGeocodingDirecto(query) {
         .catch(err => {
         });
 }
-
 function cambiarUbicacionManual() {
     if (!mapUltimo || bloqueoPorAlerta) return;
 
@@ -1850,7 +1826,6 @@ function cambiarUbicacionManual() {
         };
     }
 }
-
 function generarSonidoSasepa(tipo) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -1872,7 +1847,6 @@ function generarSonidoSasepa(tipo) {
     osc.start(ahora);
     osc.stop(ahora + 3);
 }
-
 function sincronizarOndas(epicentroCoords, timestampInicio) {
     const ahora = Date.now(); 
     const tiempoTranscurrido = (ahora - timestampInicio) / 1000; 
@@ -1884,7 +1858,6 @@ function sincronizarOndas(epicentroCoords, timestampInicio) {
 
     animarOndasDesde(epicentroCoords, radioP, radioS, tiempoTranscurrido);
 }
-
 function animarOndasDesde(coords, rP, rS, t) {
     function actualizar() {
         rP += VELOCIDAD_P / 60;
@@ -1897,7 +1870,6 @@ function animarOndasDesde(coords, rP, rS, t) {
     }
     actualizar();
 }
-
 function solicitarPermisoNotificaciones() {
     if (!("Notification" in window)) {
         console.log("Este navegador no soporta notificaciones de escritorio.");
@@ -1908,7 +1880,6 @@ function solicitarPermisoNotificaciones() {
         Notification.requestPermission();
     }
 }
-
 function enviarNotificacionPush(datos) {
     if (Notification.permission === "granted") {
         const titulo = datos.intensidad.includes("FUERTE") ? "⚠️ ALERTA CRÍTICA ⚠️" : "🔔 SISMO DETECTADO";
@@ -1928,7 +1899,6 @@ function enviarNotificacionPush(datos) {
         };
     }
 }
-
 function mostrarStatusServidorv7() {
     const statusv7 = document.createElement('div');
     statusv7.id = 'status-v7-temporal';
@@ -1969,7 +1939,6 @@ function mostrarStatusServidorv7() {
         }, 1000);
     }, 10000); 
 }
-
 async function iniciarDVRSASEPA() {
     try {
         streamGrabacion = await navigator.mediaDevices.getDisplayMedia({
@@ -2005,7 +1974,6 @@ async function iniciarDVRSASEPA() {
         console.error("No se pudo iniciar el DVR:", err);
     }
 }
-
 function cortarYGuardarSismo() {
     if (!mediaRecorder || mediaRecorder.state === "inactive" || dvrGrabandoSismo) return;
     dvrGrabandoSismo = true;
@@ -2016,7 +1984,6 @@ function cortarYGuardarSismo() {
         }
     }, 300000); 
 }
-
 function procesarYDescargarMP4() {
     const blobVideo = new Blob(fragmentosGrabacion, { type: 'video/mp4' });
     const url = URL.createObjectURL(blobVideo);
@@ -2033,7 +2000,6 @@ function procesarYDescargarMP4() {
     
     reiniciarGrabacionSilenciosa();
 }
-
 function reiniciarGrabacionSilenciosa() {
     if (!streamGrabacion || !streamGrabacion.active) {
         console.warn("La sesión de captura se perdió. Solicitando de nuevo...");
@@ -2084,6 +2050,8 @@ function reiniciarGrabacionSilenciosa() {
 document.addEventListener('DOMContentLoaded', () => {
     solicitarPermisoNotificaciones();
     iniciarReloj();
+    const app = document.getElementById('app-content');
+    if (app) app.style.display = 'block';
     const s = document.createElement('script');
     s.src = "js/sensores.js?v=" + Date.now();
     s.onload = () => {

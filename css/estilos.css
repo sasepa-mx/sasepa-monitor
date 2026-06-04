@@ -423,66 +423,138 @@ body, html {
     padding-top: 5px;
 }
 
+/* ==========================================================================
+   SIMBOLOGÍA SASEPA - MÁS CHICA Y SIN BACKGROUND 
+   ========================================================================== */
 .leyenda {
     position: absolute;
-    bottom: 70px;
-    left: 20px;
-    background: transparent;
-    backdrop-filter: blur(5px);
-    border: 1px transparent;
-    padding: 12px;
-    border-radius: 8px;
+    bottom: 90px;
+    left: 250px;
+    padding: 6px;
+    border-radius: 0;
     color: #b5b8b4;
     font-family: 'Segoe UI', Tahoma, sans-serif;
     z-index: 1000;
-    width: 320px; 
+    width: 230px; 
     display: grid;
     grid-template-columns: 1fr 1fr; 
-    gap: 4px 10px;
+    gap: 4px 8px;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 1;
     visibility: visible;
     transform: translateX(0);
     box-sizing: border-box;
+    box-shadow: none;
 }
 
-.leyenda-titulo { grid-column: span 2; font-size: 11px; font-weight: 900; color: #b5b8b4; text-align: center; border-bottom: 1px solid transparent; padding-bottom: 5px; text-transform: uppercase; }
-.separador-leyenda { grid-column: span 2; height: 1px; background: transparent; margin: 4px 0; }
-.leyenda-item { display: flex; align-items: center; }
-.leyenda-item span { font-size: 8.5px; text-transform: uppercase; font-weight: 600; }
+.leyenda-titulo { 
+    grid-column: span 2; 
+    font-size: 10px; /* Más pequeña */
+    font-weight: 900; 
+    color: #00d4ff; 
+    text-align: center; 
+    border-bottom: 1px solid rgba(255,255,255,0.1); 
+    padding-bottom: 4px; 
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
 
-.difusion-simb { width: 14px; height: 14px; border-radius: 50%; background: transparent; margin-right: 8px; }
-.d-fuerte { border: 2.5px solid #ff0000; }
-.d-moderado { border: 2.5px solid #ffff00; }
-.d-ligero { border: 2.5px solid #0000ff; }
-.d-impercep { border: 2.5px solid #00ff00; }
+.separador-leyenda { 
+    grid-column: span 2; 
+    height: 1px; 
+    background: rgba(255,255,255,0.1); 
+    margin: 2px 0; 
+}
 
-.ciudad-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
-.c-rojo { background: #ff0000; }
-.c-amarillo { background: #ffff00; }
-.c-azul { background: #0000ff; }
-.c-verde { background: #00ff00; }
+.leyenda-item { 
+    display: flex; 
+    align-items: center; 
+}
 
-.onda-p-simb { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.5); background: rgba(128,128,128,0.2); border-radius: 50%; margin-right: 8px; }
-.onda-s-simb { width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; }
-.s-roja { background: rgba(255,0,0,0.4); border: 1.5px solid #ff0000; }
-.s-verde-amarillo { background: rgba(149,209,23,0.3); border: 1.5px solid #95D117; }
-.epicentro-simb { width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; }
-.e-rojo { background: #E05516; }
-.e-verde-amarillo { background: #95D117; }
-.historial-simb { width: 12px; height: 12px; border-radius: 50%; background:transparent; border: 1.5px solid #E05516; margin-right: 8px; animation: blink 1s infinite; }
-.icon-ubi { width: 14px; height: 14px; margin-right: 8px; }
+.leyenda-item span { 
+    font-size: 8px; /* Fuente más chica */
+    text-transform: uppercase; 
+    font-weight: 700;
+    color: #eee;
+}
 
+/* Anillos de Difusión en Ciudades */
+.difusion-simb { 
+    width: 11px; /* Elementos reducidos */
+    height: 11px; 
+    border-radius: 50%; 
+    background: transparent; 
+    margin-right: 6px; 
+    box-sizing: border-box;
+}
+.d-severo   { border: 2px solid #8b0000; box-shadow: 0 0 6px rgba(139,0,0,0.5); }
+.d-fuerte   { border: 2px solid #ff0000; box-shadow: 0 0 5px rgba(255,0,0,0.4); }
+.d-moderado { border: 2px solid #ffff00; box-shadow: 0 0 5px rgba(234,179,8,0.4); }
+.d-ligero   { border: 2px solid #0055ff; box-shadow: 0 0 5px rgba(0,85,255,0.4); }
+.d-impercep { border: 2px solid #00ff00; }
+
+/* Puntos de Ubicación de Ciudades */
+.ciudad-dot { 
+    width: 8px; 
+    height: 8px; 
+    border-radius: 50%; 
+    margin-right: 6px; 
+}
+.c-fuerte   { background: #ff0000; box-shadow: 0 0 5px #ff0000; }
+.c-amarillo { background: #ffff00; box-shadow: 0 0 5px #ffff00; }
+.c-azul     { background: #3b82f6; box-shadow: 0 0 5px #3b82f6; }
+.c-verde    { background: #00ff00; box-shadow: 0 0 5px #00ff00; }
+
+/* Frentes de Ondas Dinámicas */
+.onda-p-simb { 
+    width: 11px; 
+    height: 11px; 
+    border: 1.5px solid #ffffff; 
+    background: rgba(255,255,255,0.1); 
+    border-radius: 50%; 
+    margin-right: 6px; 
+}
+.onda-s-simb { 
+    width: 11px; 
+    height: 11px; 
+    border-radius: 50%; 
+    margin-right: 6px; 
+    box-sizing: border-box;
+}
+.s-severa   { background: rgba(139,0,0,0.3); border: 1.5px solid #8b0000; }
+.s-fuerte   { background: rgba(255,0,0,0.25); border: 1.5px solid #ff0000; }
+.s-moderada { background: rgba(234,179,8,0.2); border: 1.5px solid #ffff00; }
+.s-ligera   { background: rgba(0,85,255,0.2); border: 1.5px solid #0055ff; }
+
+/* Otros Marcadores de la Interfaz */
+.historial-simb { 
+    width: 10px; 
+    height: 10px; 
+    border-radius: 50%; 
+    background: transparent; 
+    border: 1.5px solid #192a8b; 
+    margin-right: 6px; 
+    animation: blink 1.5s infinite; 
+}
+
+.icon-ubi { 
+    width: 11px; 
+    height: 11px; 
+    margin-right: 6px; 
+    object-fit: contain;
+}
+
+/* Pie de la Leyenda */
 .estado-sistema-leyenda {
     grid-column: span 2;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding-top: 10px;
-    margin-top: 5px;
-    border-top: 1px solid #333;
-    font-size: 11px;
+    gap: 6px;
+    padding-top: 6px;
+    margin-top: 2px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    font-size: 10px;
     font-weight: bold;
     color: #ffffff;
     letter-spacing: 1px;
@@ -490,10 +562,13 @@ body, html {
 
 .estado-sistema-leyenda i {
     color: #00ff00;
-    font-size: 12px;
+    font-size: 10px;
 }
 
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes blink { 
+    0%, 100% { opacity: 1; } 
+    50% { opacity: 0.3; } 
+}
 
 .leyenda.hidden {
     opacity: 0;
