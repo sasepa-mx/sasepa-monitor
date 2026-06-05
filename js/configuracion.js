@@ -363,21 +363,31 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     const intInput = (d.intensidad || "").toUpperCase();
     let esSeveroVisual = (intInput.includes("SEVERO") || intInput.includes("SEVERE"));
-    let esFuerteVisual = (intInput.includes("FUERTE") || intInput.includes("STRONG"));
-    let esModeradoVisual = (intInput.includes("MODERADO") || intInput.includes("MODERATE"));
-    let esLigeroVisual = (intInput.includes("LIGERO") || intInput.includes("LIGHT"));
+    let esFuerteVisual = (intInput.includes("FUERTE") || intInput.includes("STRONG")) && !intInput.includes("MODERADO");
+    let esModFuerteVisual = (intInput.includes("MODERADO - FUERTE") || intInput.includes("MODERADO-FUERTE"));
+    let esModeradoVisual = (intInput.includes("MODERADO") || intInput.includes("MODERATE")) && !esModFuerteVisual && !intInput.includes("LIGERO");
+    let esLigModVisual = (intInput.includes("LIGERO - MODERADO") || intInput.includes("LIGERO-MODERADO"));
+    let esLigeroVisual = (intInput.includes("LIGERO") || intInput.includes("LIGHT")) && !intInput.includes("MUY") && !esLigModVisual;
+    let esMuyLigeroVisual = (intInput.includes("MUY LIGERO") || intInput.includes("VERY LIGHT"));
+
     if (esSeveroVisual) window.tipoOrigenActual = "SEVERO";
     else if (esFuerteVisual) window.tipoOrigenActual = "FUERTE";
+    else if (esModFuerteVisual) window.tipoOrigenActual = "MODERADO-FUERTE";
     else if (esModeradoVisual) window.tipoOrigenActual = "MODERADO";
+    else if (esLigModVisual) window.tipoOrigenActual = "LIGERO-MODERADO";
+    else if (esLigeroVisual) window.tipoOrigenActual = "LIGERO";
+    else if (esMuyLigeroVisual) window.tipoOrigenActual = "MUY LIGERO";
     else window.tipoOrigenActual = "LIGERO";
+
     let colorOndaDinamico = '#0055ff'; 
-    if (esSeveroVisual) colorOndaDinamico = '#ff0000';
-    else if (esFuerteVisual) colorOndaDinamico = '#ff0000';
-    else if (esModeradoVisual) colorOndaDinamico = '#ffff00';
+    if (esSeveroVisual || esFuerteVisual) colorOndaDinamico = '#ff0000';
+    else if (esModFuerteVisual || esModeradoVisual) colorOndaDinamico = '#fcb635'; 
+    else if (esLigModVisual) colorOndaDinamico = '#bbee00'; 
+
     const sismoLat = float(d.lat || 0);
     const sismoLon = float(d.lon || 0);
     let distanciaKM = 0;
-    if (userCoords && sismoLat !== 0 && sismoLon !== 0) {
+    if (userCoords && sCoordinateMatch()) {
         distanciaKM = calcularDistancia(userCoords[1], userCoords[0], sismoLat, sismoLon);
     }
     let esMismoSismo = false;
@@ -390,7 +400,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     if (bloqueoPorAlerta && esMismoSismo) {
         console.log(`▲ SASEPA: Escalación/Actualización del sismo actual: ${window.tipoOrigenActual}`);
         window.colorOndaSActualPersistente = colorOndaDinamico;
-        if (esFuerteVisual || esSeveroVisual) {
+        if (esFuerteVisual || esSeveroVisual || esModFuerteVisual) {
             const audiosAQuitar = ['sonidoEvento', 'sonidointensidadleve', 'sonidointensidadmoderado'];
             audiosAQuitar.forEach(id => {
                 const audioNode = document.getElementById(id);
@@ -447,8 +457,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
                 else if (typeof d.estados_permitidos === 'string') estadoEstaPermitido = d.estados_permitidos.replace(/\s+/g, '').includes(miEstadoCalculado);
                 
                 if (d.estados_permitidos && !estadoEstaPermitido) return; 
-                // Si es severo, se ignora el límite de 190km para estados no asignados
-                if (!(esFuerteVisual || esSeveroVisual) && distanciaKM > 190) {
+                if (!(esFuerteVisual || esSeveroVisual || esModFuerteVisual) && distanciaKM > 190) {
                     if (!estadoEstaPermitido) return; 
                 }
             }
@@ -462,12 +471,12 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
             enviarNotificacionPush(d);
             if (CONFIG_AUDIOS.intensidades) {
                 let sonidoSensor = sLeve;
-                if (esSeveroVisual || esFuerteVisual) sonidoSensor = sFuerteAudio;
-                else if (esModeradoVisual) sonidoSensor = sMod;
+                if (esSeveroVisual || esFuerteVisual || esModFuerteVisual) sonidoSensor = sFuerteAudio;
+                else if (esModeradoVisual || esLigModVisual) sonidoSensor = sMod;
                 if (sonidoSensor) { sonidoSensor.loop = false; sonidoSensor.currentTime = 0; sonidoSensor.play().catch(e => {}); }
             }
             if (CONFIG_AUDIOS.alertas) {
-                let sonidoGral = (esSeveroVisual || esFuerteVisual) ? sGralFuerte : sGralDebil;
+                let sonidoGral = (esFuerteVisual || esSeveroVisual) ? sGralFuerte : sGralDebil;
                 setTimeout(() => { if (sonidoGral) { sonidoGral.loop = false; sonidoGral.currentTime = 0; sonidoGral.play().catch(e => {}); } }, 800);
             }
         }
@@ -477,20 +486,18 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     }
     let tiempoDesfase = 0;
     if (d.timestamp_inicio) tiempoDesfase = (Date.now() - d.timestamp_inicio) / 1000;
+    if (tiempoDesfase < 0) tiempoDesfase = 0;
+
     let intensidadLocal = "Imperceptible";
     let colorPercepcion = "#00FFFF"; 
     let distFinal = distanciaKM.toFixed(0);
     if (userCoords && sCoordinateMatch()) {
-        if (esSeveroVisual) {
-            intensidadLocal = "Fuerte";
-            colorPercepcion = "#FF2A00";
-        } 
-        else if (esFuerteVisual) {
+        if (esSeveroVisual || esFuerteVisual || esModFuerteVisual) {
             if (distanciaKM < 800) { intensidadLocal = "Fuerte"; colorPercepcion = "#FF2A00"; }
             else if (distanciaKM < 1000) { intensidadLocal = "Moderado"; colorPercepcion = "#facc15"; }
             else if (distanciaKM < 1200) { intensidadLocal = "Ligero"; colorPercepcion = "#3b82f6"; }
         } 
-        else if (esModeradoVisual) {
+        else if (esModeradoVisual || esLigModVisual) {
             if (distanciaKM < 70) { intensidadLocal = "Moderado"; colorPercepcion = "#facc15"; }
             else if (distanciaKM < 100) { intensidadLocal = "Ligero"; colorPercepcion = "#3b82f6"; }
         } 
@@ -512,7 +519,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         alertFecha.textContent = d.fecha || `${grandmother.toLocaleDateString('es-MX')} ${grandmother.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
     if (bannerBg) bannerBg.classList.remove('fuerte-glow', 'moderado-glow');
-    if (!(esFuerteVisual || esSeveroVisual)) {
+    if (!(esFuerteVisual || esSeveroVisual || esModFuerteVisual)) {
         const ticker = document.getElementById('ticker-text');
         if (ticker) {
             const nombreAMostrar = d.sensor || d.zona || "SENSOR";
@@ -537,9 +544,18 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         } else if (esFuerteVisual) {
             textoFinal = "Fuerte"; colorTextoOrigen = "#FF2A00"; 
             bannerBg.style.background = "linear-gradient(180deg, #ff0000 0%, #8b0000 100%)"; bannerBg.classList.add('fuerte-glow');
+        } else if (esModFuerteVisual) {
+            textoFinal = "Moderado - Fuerte"; colorTextoOrigen = "#d4ad2c";
+            bannerBg.style.background = "linear-gradient(180deg, #d4ad2c 0%, #d4ad2c 100%)"; bannerBg.classList.add('moderado-glow');
         } else if (esModeradoVisual) {
             textoFinal = "Moderado"; colorTextoOrigen = "#ffff00"; 
             bannerBg.style.background = "linear-gradient(180deg, #ffff00 0%, #b5b500 100%)"; bannerBg.classList.add('moderado-glow');
+        } else if (esLigModVisual) {
+            textoFinal = "Ligero - Moderado"; colorTextoOrigen = "#ccff00"; 
+            bannerBg.style.background = "linear-gradient(180deg, #bbee00 0%, #77aa00 100%)"; bannerBg.classList.add('moderado-glow');
+        } else if (esMuyLigeroVisual) {
+            textoFinal = "Muy Ligero"; colorTextoOrigen = "#00bcff"; 
+            bannerBg.style.background = "linear-gradient(180deg, #00bcff 0%, #0055aa 100%)"; bannerBg.classList.add('moderado-glow');
         } else {
             textoFinal = "Ligero"; colorTextoOrigen = "#3b82f6"; 
             bannerBg.style.background = "linear-gradient(180deg, #0055ff 0%, #002288 100%)"; bannerBg.classList.add('moderado-glow');
@@ -607,9 +623,15 @@ function actualizarCirculosCiudades(latEpi, lonEpi, intensidadGeneral) {
         let colorTxt = "#40f184"; 
         let etiqueta = "Imperceptible 🟢";
         const intUpper = (intensidadGeneral || "").toUpperCase();
+        
         let esSevero = intUpper.includes("SEVERO") || intUpper.includes("SEVERE");
-        let esFuerte = intUpper.includes("FUERTE") || intUpper.includes("STRONG");
-        let esModerado = intUpper.includes("MODERADO") || intUpper.includes("MODERATE");
+        let esFuerte = (intUpper.includes("FUERTE") || intUpper.includes("STRONG")) && !intUpper.includes("MODERADO");
+        let esModFuerte = intUpper.includes("MODERADO - FUERTE") || intUpper.includes("MODERADO-FUERTE");
+        let esModerado = (intUpper.includes("MODERADO") || intUpper.includes("MODERATE")) && !esModFuerte && !intUpper.includes("LIGERO");
+        let esLigMod = intUpper.includes("LIGERO - MODERADO") || intUpper.includes("LIGERO-MODERADO");
+        let esLigero = (intUpper.includes("LIGERO") || intUpper.includes("LIGHT")) && !intUpper.includes("MUY") && !esLigMod;
+        let esMuyLigero = intUpper.includes("MUY LIGERO") || intUpper.includes("VERY LIGHT");
+
         if (esSevero) {
             colorTxt = "#ff0000";
             etiqueta = "Fuerte 🔴";
@@ -619,13 +641,24 @@ function actualizarCirculosCiudades(latEpi, lonEpi, intensidadGeneral) {
             else if (dist < 1000) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
             else if (dist < 1200) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
         } 
-        else if (esModerado) {
-            if (dist < 70) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
-            else if (dist < 500) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
-        } 
-        else { 
-            if (dist < 70) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
+        else if (esModFuerte) {
+            if (dist < 90) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
+            else if (dist < 130) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
         }
+        else if (esModerado) {
+            if (dist < 60) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
+            else if (dist < 90) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
+        } 
+        else if (esLigMod) {
+            if (dist < 35) { colorTxt = "#bbee00"; etiqueta = "Ligero-Mod 🟢"; }
+        }
+        else if (esLigero) {
+            if (dist < 25) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
+        }
+        else if (esMuyLigero) {
+            if (dist < 10) { colorTxt = "#00bcff"; etiqueta = "Muy Ligero 🔵"; }
+        }
+
         htmlInterno += `
             <div style="display:flex; justify-content:space-between; margin-bottom:4px; align-items:center; width: 100%;">
                 <span style="color:#eee; font-size:${dynamicFontSize}; font-weight:500;">${c.nombre}</span>
@@ -694,18 +727,23 @@ function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
             const origenActual = window.tipoOrigenActual || "LIGERO";
             const colorOndaSDinamico = window.colorOndaSActualPersistente || colorS;
             let topeMaximo = 6; 
-            if (origenActual === "MODERADO") topeMaximo = 10; 
-            else if (origenActual === "FUERTE") topeMaximo = 30;  
-            else if (origenActual === "SEVERO") topeMaximo = 40;  
+            if (origenActual === "MUY LIGERO") topeMaximo = 3;
+            else if (origenActual === "LIGERO") topeMaximo = 6;
+            else if (origenActual === "LIGERO-MODERADO") topeMaximo = 7;
+            else if (origenActual === "MODERADO") topeMaximo = 10;
+            else if (origenActual === "MODERADO-FUERTE") topeMaximo = 15;
+            else if (origenActual === "FUERTE") topeMaximo = 20;  
+            else if (origenActual === "SEVERO") topeMaximo = 29;  
+            
             const featuresSensores = sensoresConEstado.map((s, index) => {
                 let colorActual = s.colorPersistente;
                 if (index < topeMaximo && rS >= s.dist) {
                     if (!s.yaSonado && typeof sonidoActivado !== 'undefined' && sonidoActivado) {
                         s.yaSonado = true;
                         let idAudio = 'sonidointensidadleve';
-                        if (origenActual === "SEVERO" || origenActual === "FUERTE") {
+                        if (origenActual === "SEVERO" || origenActual === "FUERTE" || origenActual === "MODERADO-FUERTE") {
                             idAudio = (index < 15) ? 'sonidointensidadfuerte' : 'sonidointensidadmoderado';
-                        } else if (origenActual === "MODERADO") {
+                        } else if (origenActual === "MODERADO" || origenActual === "LIGERO-MODERADO") {
                             idAudio = (index < 6) ? 'sonidointensidadmoderado' : 'sonidointensidadleve';
                         }
                         const sonidoBase = document.getElementById(idAudio);
@@ -715,19 +753,27 @@ function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
                             clonSonido.play().catch(e => {});
                         }
                     }
-                    if (origenActual === "SEVERO") {
-                        if (index < 15) colorActual = '#ff0000';         
-                        else if (index < 40) colorActual = '#ffff00';    
-                        else colorActual = '#0055ff';                    
-                    } else if (origenActual === "FUERTE") {
-                        if (index < 5) colorActual = '#ff0000';          
-                        else if (index < 30) colorActual = '#ffff00';     
-                        else colorActual = '#0055ff';                    
-                    } else if (origenActual === "MODERADO") {
-                        if (index < 6) colorActual = '#ffff00';          
-                        else colorActual = '#0055ff';                    
-                    } else { 
-                        colorActual = '#0055ff';                         
+                    if (origenActual === "MUY LIGERO" || origenActual === "LIGERO") {
+                        colorActual = '#0055ff'; 
+                    } 
+                    else if (origenActual === "LIGERO-MODERADO") {
+                        colorActual = (index < 2) ? '#bbee00' : '#0055ff'; 
+                    }
+                    else if (origenActual === "MODERADO") {
+                        colorActual = (index < 6) ? '#ffff00' : '#0055ff'; 
+                    }
+                    else if (origenActual === "MODERADO-FUERTE") {
+                        colorActual = (index < 8) ? '#ffff00' : '#0055ff'; 
+                    }
+                    else if (origenActual === "FUERTE") {
+                        if (index < 5) colorActual = '#ff0000';      
+                        else if (index < 10) colorActual = '#ffff00'; 
+                        else colorActual = '#0055ff';                 
+                    }
+                    else if (origenActual === "SEVERO") {
+                        if (index < 10) colorActual = '#ff0000';     
+                        else if (index < 17) colorActual = '#ffff00'; 
+                        else colorActual = '#0055ff';                 
                     }
                     s.colorPersistente = colorActual;
                     const idSensor = s.nombre || s.id || "S";
