@@ -181,9 +181,7 @@ function inicializarMapa() {
             return;
         }
     }
-
     if (typeof mapboxgl === 'undefined') return;
-
     const size = 150;
     window.pulsingDot = {
         width: size, 
@@ -219,7 +217,6 @@ function inicializarMapa() {
             return true;
         }
     };
-
     if (!mapUltimo) {
         mapUltimo = new mapboxgl.Map({
             container: 'mapa-ultimo-evento',
@@ -231,17 +228,14 @@ function inicializarMapa() {
         });
         mapUltimo.addControl(new mapboxgl.NavigationControl(), 'top-left');
     }
-
     const popupSensores = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'popup-sensor-sasepa' });
-
     const cargarTodo = () => {
         if (!mapUltimo.hasImage('dot-epi')) mapUltimo.addImage('dot-epi', pulsingDot, { pixelRatio: 2 });
-
         if (!mapUltimo.getSource('sensores-alerta')) {
             mapUltimo.addSource('sensores-alerta', { 
                 'type': 'geojson', 
                 'data': { 'type': 'FeatureCollection', 'features': [] },
-                'generateId': true 
+                'generateId': false 
             });
             const colorLogic = [
                 'case',
@@ -249,12 +243,10 @@ function inicializarMapa() {
                 ['!=', ['feature-state', 'color'], null], ['feature-state', 'color'],
                 ['get', 'color']
             ];
-
             mapUltimo.addLayer({ 'id': 'layer-sensores-alerta-glow', 'type': 'circle', 'source': 'sensores-alerta', 'paint': { 'circle-radius': 14, 'circle-color': colorLogic, 'circle-blur': 2.5, 'circle-opacity': 0.5 } });
             mapUltimo.addLayer({ 'id': 'layer-sensores-alerta', 'type': 'circle', 'source': 'sensores-alerta', 'paint': { 'circle-radius': 5, 'circle-color': colorLogic, 'circle-stroke-width': 0 } });
             mapUltimo.addLayer({ 'id': 'layer-sensores-alerta-reflejo', 'type': 'circle', 'source': 'sensores-alerta', 'paint': { 'circle-radius': 1.8, 'circle-color': 'transparent', 'circle-opacity': 0.7, 'circle-translate': [-1.2, -1.2] } });
         }
-
         if (!mapUltimo.getSource('ondas')) {
             mapUltimo.addSource('ondas', { 'type': 'geojson', 'data': { 'type': 'FeatureCollection', 'features': [] } });
             mapUltimo.addLayer({
@@ -268,26 +260,231 @@ function inicializarMapa() {
                 }
             });
         }
-
         if (window.MIS_SENSORES) {
-            const featuresBase = window.MIS_SENSORES.map((s, index) => ({ 
-                'type': 'Feature', 'id': index, 'properties': { 'nombre': s.nombre, 'color': '#00ff00' }, 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
-            }));
+            const featuresBase = window.MIS_SENSORES.map((s, index) => {
+                const idCorto = (s.id || "").trim().toUpperCase();
+                const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
+                if (estadoGuardado === 'false') {
+                    s.activo = false;
+                }
+                const colorInicial = (s.activo === false) ? '#ff0000' : '#00ff00';
+                return { 
+                    'type': 'Feature', 
+                    'id': index,
+                    'properties': { 'nombre': s.nombre, 'color': colorInicial }, 
+                    'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                };
+            });
             mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresBase });
         }
         setTimeout(() => { reporteInicialSensores(); mostrarStatusServidorv7(); }, 1000);
         if (typeof mostrarUbicacionUsuario === 'function') mostrarUbicacionUsuario();
     };
-
     mapUltimo.on('style.load', cargarTodo);
     if (mapUltimo.isStyleLoaded()) cargarTodo();
-
     mapUltimo.on('mouseenter', 'layer-sensores-alerta', (e) => {
         mapUltimo.getCanvas().style.cursor = 'pointer';
         const coords = e.features[0].geometry.coordinates.slice();
         popupSensores.setLngLat(coords).setHTML(`<div style="padding: 2px; font-weight: bold; font-family: Arial; font-size: 12px;">${e.features[0].properties.nombre}</div>`).addTo(mapUltimo);
     });
     mapUltimo.on('mouseleave', 'layer-sensores-alerta', () => { mapUltimo.getCanvas().style.cursor = ''; popupSensores.remove(); });
+}
+
+function iniciarEscuchaSismos() {
+    if (typeof mqtt === 'undefined') return;
+    const audioReporte = new Audio('audio/sonido_reporte.mp3');
+    const hostSeguro = '0d0724ae358247cfb3fc53fcabe61af3.s1.eu.hivemq.cloud'; 
+    let timerTicker = null;
+    const opciones = {
+        protocol: 'wss',                                         
+        host: hostSeguro,
+        port: 8884,                                           
+        path: '/mqtt',                                        
+        clientId: 'SASEPA_Monitor_' + Math.random().toString(16).substr(2, 8),
+        clean: true,
+        connectTimeout: 5000,
+        username: 'sasepa_publico',                      
+        password: 'CualEsLaPincheContraseñaSASMEXxd123', 
+        rejectUnauthorized: false                      
+    };
+    const clienteMQTT = mqtt.connect(opciones);
+    clienteMQTT.on('connect', () => {
+        clienteMQTT.subscribe('sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g', { qos: 0 });
+        clienteMQTT.subscribe('sasepa/comandos/frontend', { qos: 0 });
+    });
+    clienteMQTT.on('message', (topic, message) => {
+        try {
+            const d = JSON.parse(message.toString());
+
+            if (topic === 'sasepa/comandos/frontend') {
+                if (d.accion === "reporte_general") {
+                    reporteMasivoCiudades(d.tiempo_limpieza || 10000);
+                } else if (d.accion === "reset_total") {
+                    resetTotalMapa();
+                    reporteInicialSensores();
+                    mostrarStatusServidorv7();
+                    
+                    if (window.MIS_SENSORES && mapUltimo) {
+                        window.MIS_SENSORES.forEach((sensor, index) => {
+                            if (sensor.activo === false) {
+                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
+                            }
+                        });
+                    }
+
+                    const tickerEl = document.getElementById('ticker-text');
+                    if (tickerEl) tickerEl.innerHTML = "";
+                    if (timerTicker) clearTimeout(timerTicker);
+                } else if (d.accion === "reporte_todos_sensores") {
+                    audioReporte.currentTime = 0;
+                    audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
+                    reporteInicialSensores();
+                    
+                    if (window.MIS_SENSORES && mapUltimo) {
+                        window.MIS_SENSORES.forEach((sensor, index) => {
+                            if (sensor.activo === false) {
+                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
+                            }
+                        });
+                    }
+                } else if (d.accion === "reporte_sensor_individual") {
+                    if (d.id_sensor) {
+                        audioReporte.currentTime = 0;
+                        audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
+                        animarReporteSensor(d.id_sensor, 8000); 
+                    }
+                } else if (d.accion === "cambiar_estado_sensor") {
+                    if (d.id_sensor && window.MIS_SENSORES) {
+                        const idBuscado = d.id_sensor.trim().toUpperCase();
+                        const idx = window.MIS_SENSORES.findIndex(s => s.id === idBuscado);
+
+                        if (idx !== -1) {
+                            window.MIS_SENSORES[idx].activo = d.activo;
+                            localStorage.setItem(`sasepa_sensor_${idBuscado}`, d.activo);
+
+                            const tickerEl = document.getElementById('ticker-text');
+                            if (tickerEl) {
+                                if (timerTicker) clearTimeout(timerTicker);
+                                if (d.activo === false) {
+                                    tickerEl.innerHTML = `<span style="color: #ff0000; font-weight: bold; letter-spacing: 1px;">${idBuscado}: FUERA DE SERVICIO</span>`;
+                                } else {
+                                    tickerEl.innerHTML = `<span style="color: #00ff00; font-weight: bold; letter-spacing: 1px;">${idBuscado}: EN SERVICIO</span>`;
+                                }
+                                timerTicker = setTimeout(() => { tickerEl.innerHTML = ""; }, 10000);
+                            }
+
+                            if (mapUltimo && mapUltimo.getSource('sensores-alerta')) {
+                                const colorEstado = d.activo ? null : '#ff0000';
+                                mapUltimo.setFeatureState(
+                                    { source: 'sensores-alerta', id: idx }, // ID numérico puro reparado
+                                    { color: colorEstado, reportando: false }
+                                );
+
+                                const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
+                                    const colorInicial = (s.activo === false) ? '#ff0000' : '#00ff00';
+                                    return { 
+                                        'type': 'Feature', 
+                                        'id': index, 
+                                        'properties': { 'nombre': s.nombre, 'color': colorInicial }, 
+                                        'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                                    };
+                                });
+                                mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
+                            }
+                        }
+                    }
+                } else if (d.accion === "sistema_offline") {
+                    const tickerEl = document.getElementById('ticker-text');
+                    if (tickerEl) tickerEl.innerHTML = '<span style="color: red; font-weight: bold; letter-spacing: 2px;">SYSTEM OFFLINE</span>';
+                    if (timerTicker) clearTimeout(timerTicker);
+                    
+                    if (window.MIS_SENSORES && mapUltimo) {
+                        window.MIS_SENSORES.forEach((sensor, index) => {
+                            sensor.activo = false; 
+                            localStorage.setItem(`sasepa_sensor_${sensor.id}`, false);
+                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
+                        });
+                        
+                        const featuresActualizadas = window.MIS_SENSORES.map((s, index) => ({
+                            'type': 'Feature', 'id': index, 'properties': { 'nombre': s.nombre, 'color': '#ff0000' }, 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                        }));
+                        mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
+                    }
+                } else if (d.accion === "sistema_online") {
+                    const tickerEl = document.getElementById('ticker-text');
+                    if (tickerEl) tickerEl.innerHTML = "";
+                    if (timerTicker) clearTimeout(timerTicker);
+                    
+                    if (window.MIS_SENSORES && mapUltimo) {
+                        window.MIS_SENSORES.forEach((sensor, index) => {
+                            sensor.activo = true; 
+                            localStorage.setItem(`sasepa_sensor_${sensor.id}`, true);
+                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: null, reportando: false });
+                        });
+
+                        const featuresActualizadas = window.MIS_SENSORES.map((s, index) => ({
+                            'type': 'Feature', 'id': index, 'properties': { 'nombre': s.nombre, 'color': '#00ff00' }, 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                        }));
+                        mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
+                    }
+                    audioReporte.currentTime = 0;
+                    audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
+                    
+                    reporteInicialSensores();
+                    mostrarStatusServidorv7();
+                }
+                return; 
+            }
+
+            if (topic === 'sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g') {
+                if (!d || !d.fecha) return;
+                
+                if (d.sensor && window.MIS_SENSORES) {
+                    const idSismo = d.sensor.trim().toUpperCase();
+                    const sensorOrigen = window.MIS_SENSORES.find(s => s.id === idSismo);
+
+                    if (sensorOrigen && sensorOrigen.activo === false) {
+                        return; 
+                    }
+                }
+
+                if (window.MIS_SENSORES && mapUltimo) {
+                    window.MIS_SENSORES.forEach((s, index) => {
+                        if (s.activo === false) {
+                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000' });
+                        } else {
+                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: null });
+                        }
+                    });
+                }
+
+                if (d.timestamp_inicio) {
+                    const ahora = Date.now();
+                    const diferencia = (ahora - d.timestamp_inicio) / 1000;
+                    if (diferencia > 300) {
+                        if (typeof resetearSensores === 'function') resetearSensores(); 
+                        return; 
+                    }
+                }
+
+                const id = `${d.fecha}|${d.zona}`;
+                if (ultimaAlertaId === id || localStorage.getItem('atendida') === id) return;
+                ultimaAlertaId = id;
+                lastSyncTime = Date.now();
+                
+                try {
+                    agregarAlHistorial(d);
+                } catch (err) {}
+                
+                ejecutarNuevaAlerta(d, true);
+            }
+        } catch (error) {
+            console.error("Error", error);
+        }
+    });
+
+    clienteMQTT.on('error', (err) => { console.error("MQTT Error:", err); });
+    clienteMQTT.on('close', () => { console.warn("MQTT Cerrado"); });
 }
 function reinstalarCapasOndas() {
     if (!mapUltimo) return;
@@ -363,31 +560,21 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     const intInput = (d.intensidad || "").toUpperCase();
     let esSeveroVisual = (intInput.includes("SEVERO") || intInput.includes("SEVERE"));
-    let esFuerteVisual = (intInput.includes("FUERTE") || intInput.includes("STRONG")) && !intInput.includes("MODERADO");
-    let esModFuerteVisual = (intInput.includes("MODERADO - FUERTE") || intInput.includes("MODERADO-FUERTE"));
-    let esModeradoVisual = (intInput.includes("MODERADO") || intInput.includes("MODERATE")) && !esModFuerteVisual && !intInput.includes("LIGERO");
-    let esLigModVisual = (intInput.includes("LIGERO - MODERADO") || intInput.includes("LIGERO-MODERADO"));
-    let esLigeroVisual = (intInput.includes("LIGERO") || intInput.includes("LIGHT")) && !intInput.includes("MUY") && !esLigModVisual;
-    let esMuyLigeroVisual = (intInput.includes("MUY LIGERO") || intInput.includes("VERY LIGHT"));
-
+    let esFuerteVisual = (intInput.includes("FUERTE") || intInput.includes("STRONG"));
+    let esModeradoVisual = (intInput.includes("MODERADO") || intInput.includes("MODERATE"));
+    let esLigeroVisual = (intInput.includes("LIGERO") || intInput.includes("LIGHT"));
     if (esSeveroVisual) window.tipoOrigenActual = "SEVERO";
     else if (esFuerteVisual) window.tipoOrigenActual = "FUERTE";
-    else if (esModFuerteVisual) window.tipoOrigenActual = "MODERADO-FUERTE";
     else if (esModeradoVisual) window.tipoOrigenActual = "MODERADO";
-    else if (esLigModVisual) window.tipoOrigenActual = "LIGERO-MODERADO";
-    else if (esLigeroVisual) window.tipoOrigenActual = "LIGERO";
-    else if (esMuyLigeroVisual) window.tipoOrigenActual = "MUY LIGERO";
     else window.tipoOrigenActual = "LIGERO";
-
     let colorOndaDinamico = '#0055ff'; 
-    if (esSeveroVisual || esFuerteVisual) colorOndaDinamico = '#ff0000';
-    else if (esModFuerteVisual || esModeradoVisual) colorOndaDinamico = '#fcb635'; 
-    else if (esLigModVisual) colorOndaDinamico = '#bbee00'; 
-
+    if (esSeveroVisual) colorOndaDinamico = '#ff0000';
+    else if (esFuerteVisual) colorOndaDinamico = '#ff0000';
+    else if (esModeradoVisual) colorOndaDinamico = '#ffff00';
     const sismoLat = float(d.lat || 0);
     const sismoLon = float(d.lon || 0);
     let distanciaKM = 0;
-    if (userCoords && sCoordinateMatch()) {
+    if (userCoords && sismoLat !== 0 && sismoLon !== 0) {
         distanciaKM = calcularDistancia(userCoords[1], userCoords[0], sismoLat, sismoLon);
     }
     let esMismoSismo = false;
@@ -400,7 +587,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     if (bloqueoPorAlerta && esMismoSismo) {
         console.log(`▲ SASEPA: Escalación/Actualización del sismo actual: ${window.tipoOrigenActual}`);
         window.colorOndaSActualPersistente = colorOndaDinamico;
-        if (esFuerteVisual || esSeveroVisual || esModFuerteVisual) {
+        if (esFuerteVisual || esSeveroVisual) {
             const audiosAQuitar = ['sonidoEvento', 'sonidointensidadleve', 'sonidointensidadmoderado'];
             audiosAQuitar.forEach(id => {
                 const audioNode = document.getElementById(id);
@@ -457,7 +644,8 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
                 else if (typeof d.estados_permitidos === 'string') estadoEstaPermitido = d.estados_permitidos.replace(/\s+/g, '').includes(miEstadoCalculado);
                 
                 if (d.estados_permitidos && !estadoEstaPermitido) return; 
-                if (!(esFuerteVisual || esSeveroVisual || esModFuerteVisual) && distanciaKM > 190) {
+                // Si es severo, se ignora el límite de 190km para estados no asignados
+                if (!(esFuerteVisual || esSeveroVisual) && distanciaKM > 190) {
                     if (!estadoEstaPermitido) return; 
                 }
             }
@@ -471,12 +659,12 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
             enviarNotificacionPush(d);
             if (CONFIG_AUDIOS.intensidades) {
                 let sonidoSensor = sLeve;
-                if (esSeveroVisual || esFuerteVisual || esModFuerteVisual) sonidoSensor = sFuerteAudio;
-                else if (esModeradoVisual || esLigModVisual) sonidoSensor = sMod;
+                if (esSeveroVisual || esFuerteVisual) sonidoSensor = sFuerteAudio;
+                else if (esModeradoVisual) sonidoSensor = sMod;
                 if (sonidoSensor) { sonidoSensor.loop = false; sonidoSensor.currentTime = 0; sonidoSensor.play().catch(e => {}); }
             }
             if (CONFIG_AUDIOS.alertas) {
-                let sonidoGral = (esFuerteVisual || esSeveroVisual) ? sGralFuerte : sGralDebil;
+                let sonidoGral = (esSeveroVisual || esFuerteVisual) ? sGralFuerte : sGralDebil;
                 setTimeout(() => { if (sonidoGral) { sonidoGral.loop = false; sonidoGral.currentTime = 0; sonidoGral.play().catch(e => {}); } }, 800);
             }
         }
@@ -486,18 +674,20 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     }
     let tiempoDesfase = 0;
     if (d.timestamp_inicio) tiempoDesfase = (Date.now() - d.timestamp_inicio) / 1000;
-    if (tiempoDesfase < 0) tiempoDesfase = 0;
-
     let intensidadLocal = "Imperceptible";
     let colorPercepcion = "#00FFFF"; 
     let distFinal = distanciaKM.toFixed(0);
     if (userCoords && sCoordinateMatch()) {
-        if (esSeveroVisual || esFuerteVisual || esModFuerteVisual) {
+        if (esSeveroVisual) {
+            intensidadLocal = "Fuerte";
+            colorPercepcion = "#FF2A00";
+        } 
+        else if (esFuerteVisual) {
             if (distanciaKM < 800) { intensidadLocal = "Fuerte"; colorPercepcion = "#FF2A00"; }
             else if (distanciaKM < 1000) { intensidadLocal = "Moderado"; colorPercepcion = "#facc15"; }
             else if (distanciaKM < 1200) { intensidadLocal = "Ligero"; colorPercepcion = "#3b82f6"; }
         } 
-        else if (esModeradoVisual || esLigModVisual) {
+        else if (esModeradoVisual) {
             if (distanciaKM < 70) { intensidadLocal = "Moderado"; colorPercepcion = "#facc15"; }
             else if (distanciaKM < 100) { intensidadLocal = "Ligero"; colorPercepcion = "#3b82f6"; }
         } 
@@ -519,7 +709,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         alertFecha.textContent = d.fecha || `${grandmother.toLocaleDateString('es-MX')} ${grandmother.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
     if (bannerBg) bannerBg.classList.remove('fuerte-glow', 'moderado-glow');
-    if (!(esFuerteVisual || esSeveroVisual || esModFuerteVisual)) {
+    if (!(esFuerteVisual || esSeveroVisual)) {
         const ticker = document.getElementById('ticker-text');
         if (ticker) {
             const nombreAMostrar = d.sensor || d.zona || "SENSOR";
@@ -544,18 +734,9 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         } else if (esFuerteVisual) {
             textoFinal = "Fuerte"; colorTextoOrigen = "#FF2A00"; 
             bannerBg.style.background = "linear-gradient(180deg, #ff0000 0%, #8b0000 100%)"; bannerBg.classList.add('fuerte-glow');
-        } else if (esModFuerteVisual) {
-            textoFinal = "Moderado - Fuerte"; colorTextoOrigen = "#d4ad2c";
-            bannerBg.style.background = "linear-gradient(180deg, #d4ad2c 0%, #d4ad2c 100%)"; bannerBg.classList.add('moderado-glow');
         } else if (esModeradoVisual) {
             textoFinal = "Moderado"; colorTextoOrigen = "#ffff00"; 
             bannerBg.style.background = "linear-gradient(180deg, #ffff00 0%, #b5b500 100%)"; bannerBg.classList.add('moderado-glow');
-        } else if (esLigModVisual) {
-            textoFinal = "Ligero - Moderado"; colorTextoOrigen = "#ccff00"; 
-            bannerBg.style.background = "linear-gradient(180deg, #bbee00 0%, #77aa00 100%)"; bannerBg.classList.add('moderado-glow');
-        } else if (esMuyLigeroVisual) {
-            textoFinal = "Muy Ligero"; colorTextoOrigen = "#00bcff"; 
-            bannerBg.style.background = "linear-gradient(180deg, #00bcff 0%, #0055aa 100%)"; bannerBg.classList.add('moderado-glow');
         } else {
             textoFinal = "Ligero"; colorTextoOrigen = "#3b82f6"; 
             bannerBg.style.background = "linear-gradient(180deg, #0055ff 0%, #002288 100%)"; bannerBg.classList.add('moderado-glow');
@@ -623,15 +804,9 @@ function actualizarCirculosCiudades(latEpi, lonEpi, intensidadGeneral) {
         let colorTxt = "#40f184"; 
         let etiqueta = "Imperceptible 🟢";
         const intUpper = (intensidadGeneral || "").toUpperCase();
-        
         let esSevero = intUpper.includes("SEVERO") || intUpper.includes("SEVERE");
-        let esFuerte = (intUpper.includes("FUERTE") || intUpper.includes("STRONG")) && !intUpper.includes("MODERADO");
-        let esModFuerte = intUpper.includes("MODERADO - FUERTE") || intUpper.includes("MODERADO-FUERTE");
-        let esModerado = (intUpper.includes("MODERADO") || intUpper.includes("MODERATE")) && !esModFuerte && !intUpper.includes("LIGERO");
-        let esLigMod = intUpper.includes("LIGERO - MODERADO") || intUpper.includes("LIGERO-MODERADO");
-        let esLigero = (intUpper.includes("LIGERO") || intUpper.includes("LIGHT")) && !intUpper.includes("MUY") && !esLigMod;
-        let esMuyLigero = intUpper.includes("MUY LIGERO") || intUpper.includes("VERY LIGHT");
-
+        let esFuerte = intUpper.includes("FUERTE") || intUpper.includes("STRONG");
+        let esModerado = intUpper.includes("MODERADO") || intUpper.includes("MODERATE");
         if (esSevero) {
             colorTxt = "#ff0000";
             etiqueta = "Fuerte 🔴";
@@ -641,24 +816,13 @@ function actualizarCirculosCiudades(latEpi, lonEpi, intensidadGeneral) {
             else if (dist < 1000) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
             else if (dist < 1200) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
         } 
-        else if (esModFuerte) {
-            if (dist < 90) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
-            else if (dist < 130) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
-        }
         else if (esModerado) {
-            if (dist < 60) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
-            else if (dist < 90) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
+            if (dist < 70) { colorTxt = "#facc15"; etiqueta = "Moderado 🟡"; }
+            else if (dist < 500) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
         } 
-        else if (esLigMod) {
-            if (dist < 35) { colorTxt = "#bbee00"; etiqueta = "Ligero-Mod 🟢"; }
+        else { 
+            if (dist < 70) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
         }
-        else if (esLigero) {
-            if (dist < 25) { colorTxt = "#3b82f6"; etiqueta = "Ligero 🔵"; }
-        }
-        else if (esMuyLigero) {
-            if (dist < 10) { colorTxt = "#00bcff"; etiqueta = "Muy Ligero 🔵"; }
-        }
-
         htmlInterno += `
             <div style="display:flex; justify-content:space-between; margin-bottom:4px; align-items:center; width: 100%;">
                 <span style="color:#eee; font-size:${dynamicFontSize}; font-weight:500;">${c.nombre}</span>
@@ -703,12 +867,21 @@ function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
     if (window.intervaloOndas) return; 
     const inicio = Date.now() - (desfase * 1000);
     let lineasFeatures = [];
-    let sensoresConEstado = MIS_SENSORES.filter(s => s.lat && s.lon).map(s => ({
-        ...s,
-        dist: calcularDistancia(lat, lon, parseFloat(s.lat), parseFloat(s.lon)),
-        colorPersistente: '#00ff00',
-        yaSonado: false
-    })).sort((a, b) => a.dist - b.dist);
+    let sensoresConEstado = MIS_SENSORES.filter(s => s.lat && s.lon).map((s, index) => {
+        const idCorto = (s.id || "").trim().toUpperCase();
+        const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
+        if (estadoGuardado === 'false') {
+            s.activo = false;
+        }
+
+        return {
+            ...s,
+            idOriginal: index, 
+            dist: calcularDistancia(lat, lon, parseFloat(s.lat), parseFloat(s.lon)),
+            colorPersistente: (s.activo === false) ? '#ff0000' : '#00ff00',
+            yaSonado: false
+        };
+    }).sort((a, b) => a.dist - b.dist);
     window.intervaloOndas = setInterval(() => {
         try {
             const segs = (Date.now() - inicio) / 1000;
@@ -726,17 +899,29 @@ function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
             let ultimoSensorTexto = "";
             const origenActual = window.tipoOrigenActual || "LIGERO";
             const colorOndaSDinamico = window.colorOndaSActualPersistente || colorS;
+            
             let topeMaximo = 6; 
             if (origenActual === "MUY LIGERO") topeMaximo = 3;
             else if (origenActual === "LIGERO") topeMaximo = 6;
             else if (origenActual === "LIGERO-MODERADO") topeMaximo = 7;
             else if (origenActual === "MODERADO") topeMaximo = 10;
             else if (origenActual === "MODERADO-FUERTE") topeMaximo = 15;
-            else if (origenActual === "FUERTE") topeMaximo = 20;  
-            else if (origenActual === "SEVERO") topeMaximo = 29;  
+            else if (origenActual === "FUERTE") topeMaximo = 25;  
+            else if (origenActual === "SEVERO") topeMaximo = 34;  
             
             const featuresSensores = sensoresConEstado.map((s, index) => {
+                const idSensor = s.nombre || s.id || "S";
                 let colorActual = s.colorPersistente;
+
+                if (s.activo === false) {
+                    return {
+                        'type': 'Feature',
+                        'id': s.idOriginal, 
+                        'properties': { 'color': '#ff0000', 'nombre': s.nombre },
+                        'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                    };
+                }
+
                 if (index < topeMaximo && rS >= s.dist) {
                     if (!s.yaSonado && typeof sonidoActivado !== 'undefined' && sonidoActivado) {
                         s.yaSonado = true;
@@ -768,15 +953,14 @@ function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
                     else if (origenActual === "FUERTE") {
                         if (index < 5) colorActual = '#ff0000';      
                         else if (index < 10) colorActual = '#ffff00'; 
-                        else colorActual = '#0055ff';                 
+                        else colorActual = '#0055ff';                                  
                     }
                     else if (origenActual === "SEVERO") {
                         if (index < 10) colorActual = '#ff0000';     
                         else if (index < 17) colorActual = '#ffff00'; 
-                        else colorActual = '#0055ff';                 
+                        else colorActual = '#0055ff';                                  
                     }
                     s.colorPersistente = colorActual;
-                    const idSensor = s.nombre || s.id || "S";
                     ultimoSensorTexto = `<span style="color:${colorActual}">${idSensor.toUpperCase()} </span>`;
                     const yaTieneLinea = lineasFeatures.some(l => l.properties.id === idSensor);
                     if (!yaTieneLinea) {
@@ -792,6 +976,7 @@ function dibujarOndas(lat, lon, mapa, colorS, desfase = 0) {
                 }
                 return {
                     'type': 'Feature',
+                    'id': s.idOriginal, 
                     'properties': { 'color': colorActual, 'nombre': s.nombre },
                     'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
                 };
@@ -1308,14 +1493,21 @@ function reporteInicialSensores() {
 
     if (mapUltimo) {
         window.MIS_SENSORES.forEach((sensor, index) => {
+            const estadoGuardado = localStorage.getItem(`sasepa_sensor_${sensor.id}`);
+            if (estadoGuardado === 'false') {
+                sensor.activo = false;
+            }
+            if (sensor.activo === false) return;
             mapUltimo.setFeatureState(
                 { source: 'sensores-alerta', id: index },
                 { reportando: false }
             );
         });
     }
-
     window.MIS_SENSORES.forEach((sensor, index) => {
+        if (sensor.activo === false) {
+            return; 
+        }
         setTimeout(() => {
             if (!bloqueoPorAlerta) {
                 animarReporteSensor(sensor.nombre || sensor.id, 800); 
@@ -1378,8 +1570,7 @@ async function mostrarAppMonitor() {
             agente: navigator.userAgent
         };
         cliente_mqtt.publish('sasepa/monitor/accesos', JSON.stringify(datosAcceso), { qos: 0 });
-    }
-}
+    }}
 }
 function verificarTerminos() {
     if (localStorage.getItem('terminos_aceptados') === 'true') {
@@ -1457,95 +1648,6 @@ function toggleAudioSasepa() {
         console.log("🔇 Sonido SASEPA: Silenciado");
     }
 }
-function iniciarEscuchaSismos() {
-    if (typeof mqtt === 'undefined') return;
-
-    const hostSeguro = '0d0724ae358247cfb3fc53fcabe61af3.s1.eu.hivemq.cloud'; 
-    const opciones = {
-        protocol: 'wss',                                          
-        host: hostSeguro,
-        port: 8884,                                           
-        path: '/mqtt',                                        
-        clientId: 'SASEPA_Monitor_' + Math.random().toString(16).substr(2, 8),
-        clean: true,
-        connectTimeout: 5000,
-        username: 'sasepa_publico',                     
-        password: 'CualEsLaPincheContraseñaSASMEXxd123', 
-        rejectUnauthorized: false                     
-    };
-    
-    const clienteMQTT = mqtt.connect(opciones);
-
-    clienteMQTT.on('connect', () => {
-        clienteMQTT.subscribe('sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g', { qos: 0 });
-        clienteMQTT.subscribe('sasepa/comandos/frontend', { qos: 0 });
-    });
-
-    clienteMQTT.on('message', (topic, message) => {
-        try {
-            const d = JSON.parse(message.toString());
-
-            if (topic === 'sasepa/comandos/frontend') {
-                if (d.accion === "reporte_general") {
-                    reporteMasivoCiudades(d.tiempo_limpieza || 10000);
-                } else if (d.accion === "reset_total") {
-                    resetTotalMapa();
-                    reporteInicialSensores();
-                    mostrarStatusServidorv7();
-                } else if (d.accion === "reporte_todos_sensores") {
-                    reporteInicialSensores();
-                } else if (d.accion === "sistema_offline") {
-                    const tickerEl = document.getElementById('ticker-text');
-                    if (tickerEl) tickerEl.innerHTML = '<span style="color: red; font-weight: bold; letter-spacing: 2px;">SYSTEM OFFLINE</span>';
-                    if (window.MIS_SENSORES && mapUltimo) {
-                        window.MIS_SENSORES.forEach((sensor, index) => {
-                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
-                        });
-                    }
-                } else if (d.accion === "sistema_online") {
-                    const tickerEl = document.getElementById('ticker-text');
-                    if (tickerEl) tickerEl.innerHTML = "";
-                    if (window.MIS_SENSORES && mapUltimo) {
-                        window.MIS_SENSORES.forEach((sensor, index) => {
-                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#00ff00', reportando: false });
-                        });
-                    }
-                    reporteInicialSensores();
-                    mostrarStatusServidorv7();
-                }
-                return; 
-            }
-
-            if (topic === 'sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g') {
-                if (!d || !d.fecha) return;
-                if (window.MIS_SENSORES && mapUltimo) {
-                    window.MIS_SENSORES.forEach((s, i) => mapUltimo.setFeatureState({ source: 'sensores-alerta', id: i }, { color: null }));
-                }
-                if (d.timestamp_inicio) {
-                    const ahora = Date.now();
-                    const diferencia = (ahora - d.timestamp_inicio) / 1000;
-                    if (diferencia > 300) {
-                        if (typeof resetearSensores === 'function') resetearSensores(); 
-                        return; 
-                    }
-                }
-                const id = `${d.fecha}|${d.zona}`;
-                if (ultimaAlertaId === id || localStorage.getItem('atendida') === id) return;
-                ultimaAlertaId = id;
-                lastSyncTime = Date.now();
-                try {
-                    agregarAlHistorial(d);
-                } catch (err) {}
-                ejecutarNuevaAlerta(d, true);
-            }
-        } catch (error) {
-            console.error("Error en mensaje MQTT:", error);
-        }
-    });
-
-    clienteMQTT.on('error', (err) => { console.error("MQTT Error:", err); });
-    clienteMQTT.on('close', () => { console.warn("MQTT Cerrado"); });
-}
 async function limpiarAudios() {
     if (window.audioContext && window.audioContext.state !== 'closed') {
         await window.audioContext.suspend(); 
@@ -1607,50 +1709,53 @@ async function resetearSensores() {
     if (window.audioContext && window.audioContext.state !== 'closed') {
         await window.audioContext.suspend(); 
     }
-
     if (window.intervaloOndas) clearInterval(window.intervaloOndas);
     if (window.intervaloETA) clearInterval(window.intervaloETA);
     if (window.timerTicker) clearTimeout(window.timerTicker); 
     if (window.timeoutCierre) clearTimeout(window.timeoutCierre);
     if (window.timeoutCiudades) clearTimeout(window.timeoutCiudades);
-
+    window.intervaloOndas = null; // Limpieza física de referencias
     const tickerEl = document.getElementById('ticker-text');
     if (tickerEl) tickerEl.innerHTML = "";
-
     const banner = document.getElementById('alert-container');
     if (banner) banner.style.display = 'none';
-
     const cuadroCiudades = document.getElementById('cuadro-ciudades');
     if (cuadroCiudades) {
         cuadroCiudades.style.display = 'none';
     }
-
     if (mapUltimo) {
-        ['ondas', 'lineas-sensores', 'epicentro', 'ciudades-difusion'].forEach(f => {
+        ['ondas', 'lineas-sensores', 'epicentric', 'ciudades-difusion'].forEach(f => {
             const source = mapUltimo.getSource(f);
             if (source) {
                 source.setData({ 'type': 'FeatureCollection', 'features': [] });
             }
         });
-
-        if (mapUltimo.getLayer('layer-sensores-puntos')) {
-            mapUltimo.setPaintProperty('layer-sensores-puntos', 'circle-color', '#00ff00');
-            mapUltimo.setPaintProperty('layer-sensores-puntos', 'circle-stroke-color', 'transparent');
-            mapUltimo.setPaintProperty('layer-sensores-puntos', 'circle-opacity', 1);
-        }
-        
         if (window.MIS_SENSORES && mapUltimo.getSource('sensores-alerta')) {
-            const featuresBase = window.MIS_SENSORES.map(s => ({
-                'type': 'Feature',
-                'properties': { 
-                    'color': '#00ff00',
-                    'nombre': s.nombre 
-                },
-                'geometry': { 
-                    'type': 'Point', 
-                    'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] 
+            const featuresBase = window.MIS_SENSORES.map((s, index) => {
+                const idCorto = (s.id || "").trim().toUpperCase();
+                const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
+                if (estadoGuardado === 'false') {
+                    s.activo = false;
                 }
-            }));
+                const colorFinal = (s.activo === false) ? '#ff0000' : '#00ff00';
+                const colorEstadoMapbox = (s.activo === false) ? '#ff0000' : null;
+                mapUltimo.setFeatureState(
+                    { source: 'sensores-alerta', id: index },
+                    { color: colorEstadoMapbox, reportando: false }
+                );
+                return {
+                    'type': 'Feature',
+                    'id': index,
+                    'properties': { 
+                        'color': colorFinal,
+                        'nombre': s.nombre 
+                    },
+                    'geometry': { 
+                        'type': 'Point', 
+                        'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] 
+                    }
+                };
+            });
             mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresBase });
             bloqueoPorAlerta = false;
             reporteInicialSensores();
