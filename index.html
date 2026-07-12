@@ -172,7 +172,6 @@
 <header>
   <h1>SASEPA</h1>
   <div class="header-buttons">
-    <a href="https://github.com/sasepa-mx/sasepa-monitor/releases/download/v8.0.0/SASEPA_MonitorSetup.exe" class="btn btn-download" download>Descargar Monitor v8.0.0 (.exe)</a>
     <a href="https://t.me/SASEPAMx" class="btn">Telegram</a>
   </div>
 </header>
@@ -180,7 +179,7 @@
 <section class="hero">
   <h2>Detecciones del Sistema de Alerta Sísmica Mexicano</h2>
   <p>Recibe notificaciones rápidas y confiables directamente en tu celular o instala nuestra aplicación de escritorio.</p>
-  <a href="https://github.com/sasepa-mx/sasepa-monitor/releases/download/v1.0.1/SASEPA_MonitorSetup.exe" class="btn btn-download" style="font-size: 1.1rem; padding: 0.8rem 1.6rem;" download>⬇️ Descargar SASEPA Monitor para Windows</a>
+  <a href="https://github.com/sasepa-mx/sasepa-monitor/releases/download/v1.0.1/SASEPA_MonitorSetup.exe" class="btn btn-download" style="font-size: 1.1rem; padding: 0.8rem 1.6rem;" download>⬇️ Descargar</a>
   <br>
   <img src="img/SASEPA.png" alt="SASEPA" onerror="this.style.display='none'">
 </section>
@@ -205,7 +204,7 @@
 
   <div class="card">
     <h3>Estado del servicio</h3>
-    <div class="status" id="mqtt-status">🔴 Desconectado (MQTT)</div>
+    <div class="status" id="mqtt-status">🔴 Desconectado</div>
     <div class="data">Última verificación: <span id="uptime">Cargando…</span></div>
   </div>
 
@@ -308,13 +307,13 @@
     clientId: 'SASEPA_Monitor_' + Math.random().toString(16).substr(2, 8),
     clean: true,
     connectTimeout: 5000,
-    username: 'sasepa_admin',
+    username: 'sasepa',
     password: '!QnVitpZBAjJx7k',
     rejectUnauthorized: false                      
   };
   const clienteMQTT = mqtt.connect(`wss://${opciones.host}:${opciones.port}${opciones.path}`, opciones);
   clienteMQTT.on('connect', () => {
-    document.getElementById('mqtt-status').textContent = "🟢 Activo (HiveMQ)";
+    document.getElementById('mqtt-status').textContent = "🟢 Activo";
     document.getElementById('mqtt-status').className = "status online";
     clienteMQTT.subscribe('sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g', { qos: 0 });
     clienteMQTT.subscribe('sasepa/comandos/frontend', { qos: 0 });
@@ -324,7 +323,7 @@
     document.getElementById('mqtt-status').className = "status";
   });
   clienteMQTT.on('close', () => {
-    document.getElementById('mqtt-status').textContent = "🔴 Desconectado (HiveMQ)";
+    document.getElementById('mqtt-status').textContent = "🔴 Desconectado";
     document.getElementById('mqtt-status').className = "status";
   });
   clienteMQTT.on('message', (topic, message) => {
