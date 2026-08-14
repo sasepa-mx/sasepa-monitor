@@ -391,13 +391,13 @@ function iniciarEscuchaSismos() {
         protocol: 'wss',
         host: hostSeguro,
         port: 8884,
-        path: '/mqtt',                                        
+        path: '/mqtt',                                       
         clientId: 'SASEPA_Monitor_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
         username: 'sasepa',
         password: '!QnVitpZBAjJx7k',
-        rejectUnauthorized: false                                   
+        rejectUnauthorized: false                             
     };
     const clienteMQTT = mqtt.connect(opciones);
     clienteMQTT.on('connect', () => {
@@ -592,35 +592,60 @@ function iniciarEscuchaSismos() {
                         }
                     }
                 } else if (d.accion === "sistema_offline") {
+                    const regionObjetivo = d.region ? d.region.trim().toUpperCase() : "TODOS";
                     const tickerEl = document.getElementById('ticker-text');
-                    if (tickerEl) tickerEl.innerHTML = '<span style="color: red; font-weight: bold; letter-spacing: 2px;">SYSTEM OFFLINE</span>';
-                    if (timerTickerGlobal) clearTimeout(timerTickerGlobal);
-                    registrarLogSensor("sasepa.net.v8", "El servidor remoto reporta desconexión global.", "desconectado");
+                    
+                    if (regionObjetivo === "TODOS") {
+                        if (tickerEl) tickerEl.innerHTML = '<span style="color: red; font-weight: bold; letter-spacing: 2px;">SYSTEM OFFLINE</span>';
+                        registrarLogSensor("sasepa.net.v8", "El servidor remoto reporta desconexión global.", "desconectado");
+                    } else {
+                        if (tickerEl) {
+                            tickerEl.innerHTML = `<span style="color: red; font-weight: bold; letter-spacing: 2px;">OFFLINE: REGIÓN ${regionObjetivo}</span>`;
+                            setTimeout(() => { tickerEl.innerHTML = ""; }, 10000);
+                        }
+                        registrarLogSensor("sasepa.net.v8", `Región ${regionObjetivo} fuera de servicio.`, "desconectado");
+                    }
+
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
-                            sensor.activo = false; 
-                            localStorage.setItem(`sasepa_sensor_${sensor.id}`, false);
-                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
+                            const idSensorUpper = (sensor.id || "").trim().toUpperCase();
+                            if (regionObjetivo === "TODOS" || idSensorUpper === regionObjetivo || idSensorUpper.startsWith(regionObjetivo + "-")) {
+                                sensor.activo = false; 
+                                localStorage.setItem(`sasepa_sensor_${sensor.id}`, false);
+                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
+                            }
                         });
-                        const featuresActualizadas = window.MIS_SENSORES.map((s, index) => ({
-                            'type': 'Feature', 'id': index, 'properties': { 'nombre': s.nombre, 'color': '#ff0000' }, 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
-                        }));
+                        const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
+                            const colorInic = (s.activo === false) ? '#ff0000' : '#00ff00';
+                            return {
+                                'type': 'Feature', 'id': index, 'properties': { 'nombre': s.nombre, 'color': colorInic }, 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                            };
+                        });
                         mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
                     }
                 } else if (d.accion === "sistema_online") {
+                    const regionObjetivo = d.region ? d.region.trim().toUpperCase() : "TODOS";
                     const tickerEl = document.getElementById('ticker-text');
+                    
                     if (tickerEl) tickerEl.innerHTML = "";
                     if (timerTickerGlobal) clearTimeout(timerTickerGlobal);
-                    registrarLogSensor("sasepa.net.v8", "Servidor en línea restablecido. Sincronizando infraestructura...", "conexion");
+                    registrarLogSensor("sasepa.net.v8", `Restableciendo servicio para: ${regionObjetivo}...`, "conexion");
+
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
-                            sensor.activo = true; 
-                            localStorage.setItem(`sasepa_sensor_${sensor.id}`, true);
-                            mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: null, reportando: false });
+                            const idSensorUpper = (sensor.id || "").trim().toUpperCase();
+                            if (regionObjetivo === "TODOS" || idSensorUpper === regionObjetivo || idSensorUpper.startsWith(regionObjetivo + "-")) {
+                                sensor.activo = true; 
+                                localStorage.setItem(`sasepa_sensor_${sensor.id}`, true);
+                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: null, reportando: false });
+                            }
                         });
-                        const featuresActualizadas = window.MIS_SENSORES.map((s, index) => ({
-                            'type': 'Feature', 'id': index, 'properties': { 'nombre': s.nombre, 'color': '#00ff00' }, 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
-                        }));
+                        const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
+                            const colorInic = (s.activo === false) ? '#ff0000' : '#00ff00';
+                            return {
+                                'type': 'Feature', 'id': index, 'properties': { 'nombre': s.nombre, 'color': colorInic }, 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                            };
+                        });
                         mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
                     }
                     audioReporte.currentTime = 0;
