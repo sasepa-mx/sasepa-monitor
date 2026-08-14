@@ -391,7 +391,7 @@ function iniciarEscuchaSismos() {
         protocol: 'wss',
         host: hostSeguro,
         port: 8884,
-        path: '/mqtt',                                       
+        path: '/mqtt',                                         
         clientId: 'SASEPA_Monitor_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
@@ -399,14 +399,18 @@ function iniciarEscuchaSismos() {
         password: '!QnVitpZBAjJx7k',
         rejectUnauthorized: false                             
     };
+    
     const clienteMQTT = mqtt.connect(opciones);
+    
     clienteMQTT.on('connect', () => {
         clienteMQTT.subscribe('sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g', { qos: 0 });
         clienteMQTT.subscribe('sasepa/comandos/frontend', { qos: 0 });
     });
+
     clienteMQTT.on('message', (topic, message) => {
         try {
             const d = JSON.parse(message.toString());
+            
             if (topic === 'sasepa/comandos/frontend') {
                 if (d.accion === "reporte_general") {
                     registrarLogSensor("SMAEPA", "Reporte difusión ciudades.", "conexion");
@@ -450,7 +454,6 @@ function iniciarEscuchaSismos() {
                     if (d.id_sensor) {
                         audioReporte.currentTime = 0;
                         audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
-                        
                         registrarLogSensor(d.id_sensor, "Reportándose", "online");
                         animarReporteSensor(d.id_sensor, 8000); 
                     }
@@ -467,7 +470,8 @@ function iniciarEscuchaSismos() {
                                     clon.play().catch(() => {});
                                 }
                             }
-                            const esRep = ciudadTarget.esRepetidora === true;const featureNueva = {
+                            const esRep = ciudadTarget.esRepetidora === true;
+                            const featureNueva = {
                                 'type': 'Feature',
                                 'id': ciudadTarget.id, 
                                 'properties': { 
@@ -592,7 +596,7 @@ function iniciarEscuchaSismos() {
                         }
                     }
                 } else if (d.accion === "sistema_offline") {
-                    const regionObjetivo = (d.region || "TODOS").trim().toUpperCase();
+                    const regionObjetivo = d.region ? d.region.trim().toUpperCase() : "TODOS";
                     const tickerEl = document.getElementById('ticker-text');
                     
                     if (regionObjetivo === "TODOS") {
@@ -609,7 +613,7 @@ function iniciarEscuchaSismos() {
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const idSensorUpper = (sensor.id || "").trim().toUpperCase();
-                            if (regionObjetivo === "TODOS" || idSensorUpper.startsWith(regionObjetivo)) {
+                            if (regionObjetivo === "TODOS" || idSensorUpper === regionObjetivo || idSensorUpper.startsWith(regionObjetivo + "-")) {
                                 sensor.activo = false; 
                                 localStorage.setItem(`sasepa_sensor_${sensor.id}`, false);
                                 mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
@@ -624,7 +628,7 @@ function iniciarEscuchaSismos() {
                         mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
                     }
                 } else if (d.accion === "sistema_online") {
-                    const regionObjetivo = (d.region || "TODOS").trim().toUpperCase();
+                    const regionObjetivo = d.region ? d.region.trim().toUpperCase() : "TODOS";
                     const tickerEl = document.getElementById('ticker-text');
                     
                     if (tickerEl) tickerEl.innerHTML = "";
@@ -634,7 +638,7 @@ function iniciarEscuchaSismos() {
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const idSensorUpper = (sensor.id || "").trim().toUpperCase();
-                            if (regionObjetivo === "TODOS" || idSensorUpper.startsWith(regionObjetivo)) {
+                            if (regionObjetivo === "TODOS" || idSensorUpper === regionObjetivo || idSensorUpper.startsWith(regionObjetivo + "-")) {
                                 sensor.activo = true; 
                                 localStorage.setItem(`sasepa_sensor_${sensor.id}`, true);
                                 mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: null, reportando: false });
@@ -657,9 +661,7 @@ function iniciarEscuchaSismos() {
             }
 
             if (topic === 'sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g') {
-                if (!d || !d.fecha) {
-                    return;
-                }
+                if (!d || !d.fecha) return;
 
                 localStorage.removeItem('atendida');
                 bloqueoPorAlerta = false;
@@ -676,12 +678,12 @@ function iniciarEscuchaSismos() {
                 };
 
                 if (d.sensor && window.MIS_SENSORES) {
-                const idSismo = d.sensor.trim().toUpperCase();
-                if (idSismo !== "SASMEX") {
-                    const sensorOrigen = window.MIS_SENSORES.find(s => s.id === idSismo);
-                    if (sensorOrigen && sensorOrigen.activo === false) return;
+                    const idSismo = d.sensor.trim().toUpperCase();
+                    if (idSismo !== "SASMEX") {
+                        const sensorOrigen = window.MIS_SENSORES.find(s => s.id === idSismo);
+                        if (sensorOrigen && sensorOrigen.activo === false) return;
+                    }
                 }
-            }
 
                 if (window.MIS_SENSORES && mapUltimo) {
                     window.MIS_SENSORES.forEach((s, index) => {
