@@ -592,7 +592,7 @@ function iniciarEscuchaSismos() {
                         }
                     }
                 } else if (d.accion === "sistema_offline") {
-                    const regionObjetivo = d.region ? d.region.trim().toUpperCase() : "TODOS";
+                    const regionObjetivo = (d.region || "TODOS").trim().toUpperCase();
                     const tickerEl = document.getElementById('ticker-text');
                     
                     if (regionObjetivo === "TODOS") {
@@ -609,7 +609,7 @@ function iniciarEscuchaSismos() {
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const idSensorUpper = (sensor.id || "").trim().toUpperCase();
-                            if (regionObjetivo === "TODOS" || idSensorUpper === regionObjetivo || idSensorUpper.startsWith(regionObjetivo + "-")) {
+                            if (regionObjetivo === "TODOS" || idSensorUpper.startsWith(regionObjetivo)) {
                                 sensor.activo = false; 
                                 localStorage.setItem(`sasepa_sensor_${sensor.id}`, false);
                                 mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
@@ -624,7 +624,7 @@ function iniciarEscuchaSismos() {
                         mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
                     }
                 } else if (d.accion === "sistema_online") {
-                    const regionObjetivo = d.region ? d.region.trim().toUpperCase() : "TODOS";
+                    const regionObjetivo = (d.region || "TODOS").trim().toUpperCase();
                     const tickerEl = document.getElementById('ticker-text');
                     
                     if (tickerEl) tickerEl.innerHTML = "";
@@ -634,7 +634,7 @@ function iniciarEscuchaSismos() {
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const idSensorUpper = (sensor.id || "").trim().toUpperCase();
-                            if (regionObjetivo === "TODOS" || idSensorUpper === regionObjetivo || idSensorUpper.startsWith(regionObjetivo + "-")) {
+                            if (regionObjetivo === "TODOS" || idSensorUpper.startsWith(regionObjetivo)) {
                                 sensor.activo = true; 
                                 localStorage.setItem(`sasepa_sensor_${sensor.id}`, true);
                                 mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: null, reportando: false });
