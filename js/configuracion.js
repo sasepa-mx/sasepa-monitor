@@ -7,19 +7,13 @@ var CONFIG_AUDIOS = {
     intensidades: true, 
     sensores: true      
 };
-let mediaRecorder = null;
-let fragmentosGrabacion = [];
-let buferCircular = []; 
-let intervaloBufer = null;
-let streamGrabacion = null;
 let desfaseServidorMs = 0;
 window.memoriaLat = 0;
 window.memoriaLon = 0;
-
 if (typeof mapboxgl !== 'undefined' && window.MAPBOX_ACCESS_TOKEN) {
     mapboxgl.accessToken = window.MAPBOX_ACCESS_TOKEN;
 }
-
+if (!window.sismosActivos) window.sismosActivos = [];
 var MIS_SENSORES = (typeof window !== 'undefined' && window.MIS_SENSORES) ? window.MIS_SENSORES : [];
 var ESTADO_SENSORES_SASEPA = {};
 let mapUltimo = null;
@@ -40,12 +34,11 @@ let fuenteDebilIniciada = false;
 let sonidoActivado = true;
 let bloqueoPorAlerta = false;
 var timersSensores = {};
-let dvrBloqueadoPorSismo = false;
-let dvrTiempoInicioSismo = null;
-let dvrGrabandoSismo = false;
-const VELOCIDAD_P = 6.0; 
-const VELOCIDAD_S = 3.5;
-
+const VELOCIDAD_P = 7.0; 
+const VELOCIDAD_S = 4.5;
+if (window.sismoMenorEnProgreso === undefined) {
+    window.sismoMenorEnProgreso = false;
+}
 try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('sasepa_historial')) {
         listaHistorial = JSON.parse(localStorage.getItem('sasepa_historial')) || [];
@@ -53,7 +46,6 @@ try {
 } catch (e) { 
     listaHistorial = []; 
 }
-
 /**
  * @param {string} sensor
  * @param {string} mensaje
@@ -169,9 +161,96 @@ function generarRepetidorasSasmex() {
 }
 
 function toggleMenuAudio() {
-    const menu = document.getElementById('menu-config-audio');
-    menu.style.display = (menu.style.display === 'none') ? 'block' : 'none';
+    const audioElements = document.querySelectorAll('audio');
+    if (audioElements.length === 0) {
+        console.warn("No se encontraron elementos de audio en el HTML.");
+        alert("No hay elementos de audio configurados en la página.");
+        return;
+    }
+    let modal = document.getElementById('audio-config-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'audio-config-modal';
+        modal.style.cssText = `
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #1e293b; color: #f8fafc; padding: 20px; border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 10000; width: 90%; max-width: 450px;
+            font-family: system-ui, -apple-system, sans-serif;
+        `;
+        document.body.appendChild(modal);
+    }
+    let htmlContent = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; font-size: 1.1rem; color: #38bdf8;">Configuración de Audios</h3>
+            <button onclick="document.getElementById('audio-config-modal').style.display='none'" style="background:none; border:none; color:#94a3b8; font-size: 1.2rem; cursor:pointer;">&times;</button>
+        </div>
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 15px;">
+            Selecciona un audio del sistema y carga un nuevo archivo (MP3/WAV) para reemplazarlo.
+        </p>
+        <div style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+    `;
+    audioElements.forEach((audio, index) => {
+        const audioId = audio.id || `audio_${index}`;
+        const currentSrc = audio.src || (audio.querySelector('source') ? audio.querySelector('source').src : 'Sin fuente');
+        const fileName = currentSrc.split('/').pop() || 'Personalizado';
+        htmlContent.forEach ? null : null;
+        htmlContent += `
+            <div style="background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid #334155;">
+                <div style="font-size: 0.9rem; font-weight: 600; margin-bottom: 5px;">
+                    🔊 ID: <span style="color: #cbd5e1;">${audioId}</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px; word-break: break-all;">
+                    Actual: ${fileName}
+                </div>
+                <input type="file" id="file_${audioId}" accept="audio/*" style="font-size: 0.75rem; width: 100%; color: #94a3b8;" 
+                       onchange="appModificarAudio(this, '${audioId}')">
+            </div>
+        `;
+    });
+    htmlContent += `
+        </div>
+        <div style="margin-top: 15px; text-align: right;">
+            <button onclick="document.getElementById('audio-config-modal').style.display='none'" style="background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">Cerrar</button>
+        </div>
+    `;
+    modal.innerHTML = htmlContent;
+    modal.style.display = 'block';
 }
+
+function appModificarAudio(inputElement, audioId) {
+    const file = inputElement.files[0];
+    if (!file) return;
+    const audioElem = document.getElementById(audioId) || document.querySelector(`audio#${audioId}`) || document.querySelectorAll('audio')[parseInt(audioId.replace('audio_', ''))];
+    if (audioElem) {
+        const fileURL = URL.createObjectURL(file);
+        audioElem.src = fileURL;
+        audioElem.load();
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                localStorage.setItem(`sasepa_custom_audio_${audioId}`, e.target.result);
+                console.log(`Audio ${audioId} actualizado y guardado correctamente.`);
+                alert(`¡Audio "${audioId}" actualizado con éxito!`);
+            } catch (err) {
+                console.warn("El archivo es demasiado grande para guardarlo en localStorage, pero funcionará en esta sesión.");
+                alert(`¡Audio "${audioId}" actualizado para esta sesión!`);
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function cargarAudiosGuardados() {
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach((audio, index) => {
+        const audioId = audio.id || `audio_${index}`;
+        const savedAudio = localStorage.getItem(`sasepa_custom_audio_${audioId}`);
+        if (savedAudio) {
+            audio.src = savedAudio;
+            audio.load();
+        }
+    });
+}document.addEventListener('DOMContentLoaded', cargarAudiosGuardados);
 
 function actualizarCanalesAudio() {
     const chkAlertas = document.getElementById('check-audio-alertas');
@@ -896,11 +975,17 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     const intInput = (d.intensidad || "").toUpperCase();
     let esSeveroVisual = (intInput.includes("SEVERE") || intInput.includes("SEVERO") || intInput.includes("FUERTE"));
     let tipoAnterior = window.tipoOrigenActual || "MODERATE";
+    
+    if (!esSeveroVisual) {
+        window.sismoMenorEnProgreso = true;
+    }
+
     if (esSeveroVisual) {
         window.tipoOrigenActual = "SEVERE";
     } else {
         window.tipoOrigenActual = "MODERATE";
     }
+
     let sismoLat = 0;
     let sismoLon = 0;
     
@@ -1036,14 +1121,21 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
             }
         }
     }
+    let sismoActivoExistente = null;
+    if (window.sismosActivos && window.sismosActivos.length > 0) {
+        sismoActivoExistente = window.sismosActivos.find(s => {
+            let esMismoSensorExacto = (s.zonaReporte && s.zonaReporte === d.zona);
+            let tiempoTranscurridoSecs = (Date.now() - s.inicio) / 1000;
+            let esSismoPrevioFuerte = (window.tipoOrigenActual === "SEVERE" || s.colorS === '#ff0000');
+            if (esSismoPrevioFuerte && !esMismoSensorExacto) {
+                return false; 
+            }
 
-    let esMismoSismo = false;
-    if (window.lastSismoLat && window.lastSismoLon) {
-        let distanciaEntreReportes = calcularDistancia(window.lastSismoLat, window.lastSismoLon, sismoLat, sismoLon);
-        if (distanciaEntreReportes < 30 || window.lastSismoZona === d.zona) {
-            esMismoSismo = true;
-        }
+            return esMismoSensorExacto && tiempoTranscurridoSecs < 15;
+        });
     }
+
+    let esMismoSismo = !!sismoActivoExistente;
 
     function arrancarOActualizarETA(esEscalacion = false) {
         const etaEl = document.getElementById('alert-eta');
@@ -1096,9 +1188,12 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     }
     if (tiempoDesfase < 0 || isNaN(tiempoDesfase)) tiempoDesfase = 0;
 
-    if (bloqueoPorAlerta && esMismoSismo) {
-        window.colorOndaSActualPersistente = '#ff0000';
-        
+    if (esMismoSismo && sismoActivoExistente) {
+        if (esSeveroVisual) {
+            sismoActivoExistente.colorS = '#ff0000';
+            window.colorOndaSActualPersistente = '#ff0000';
+        }
+
         if (esUbicacionFuerte) {
             const audiosAQuitar = ['sonidoEvento', 'sonidointensidadleve', 'sonidointensidadmoderado'];
             audiosAQuitar.forEach(id => { const a = document.getElementById(id); if(a) { a.pause(); a.currentTime = 0; }});
@@ -1122,21 +1217,28 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         if (esEscalacionSevera) {
             arrancarOActualizarETA(true);
         }
+
+        requestAnimationFrame(() => {
+            try {
+                if (typeof actualizarMarcadorEpicentro === 'function') {
+                    actualizarMarcadorEpicentro(sismoLat, sismoLon, esSeveroVisual ? "Fuerte" : "Ligero / Moderado");
+                }
+                if (typeof dibujarOndas === 'function') {
+                    dibujarOndas(sismoLat, sismoLon, mapUltimo, colorOndaDinamico, tiempoDesfase, true, d.zona);
+                }
+            } catch (err) {
+                console.error("Error al actualizar ondas:", err);
+            }
+        });
     } else {
-        window.lastSismoLat = sismoLat; window.lastSismoLon = sismoLon; window.lastSismoZona = d.zona;
+        window.lastSismoLat = sismoLat; 
+        window.lastSismoLon = sismoLon; 
+        window.lastSismoZona = d.zona;
+
         if (window.timeoutCierre) clearTimeout(window.timeoutCierre);
         if (window.timeoutCierreSismoDos) clearTimeout(window.timeoutCierreSismoDos);
         if (window.timerTicker) clearTimeout(window.timerTicker);
-        if (!esSeveroVisual) {
-            if (window.intervaloOndas) { clearInterval(window.intervaloOndas); window.intervaloOndas = null; }
-            if (mapUltimo) {
-                ['ondas', 'lineas-sensores', 'epicentro'].forEach(f => {
-                    if (mapUltimo.getSource(f)) mapUltimo.getSource(f).setData({ 'type': 'FeatureCollection', 'features': [] });
-                });
-                if (mapUltimo.getLayer('layer-sensores-puntos')) mapUltimo.setPaintProperty('layer-sensores-puntos', 'circle-color', '#00ff00');
-            }
-        }
-
+        
         if (window.sensoresQueYaSonaron) window.sensoresQueYaSonaron.clear();
         else window.sensoresQueYaSonaron = new Set();
         
@@ -1211,20 +1313,20 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         limpiarReportesDeSensoresParaAlerta();
         renderizarBannerVisual();
         arrancarOActualizarETA(false);
+
+        requestAnimationFrame(() => {
+            try {
+                if (typeof actualizarMarcadorEpicentro === 'function') {
+                    actualizarMarcadorEpicentro(sismoLat, sismoLon, esSeveroVisual ? "Fuerte" : "Ligero / Moderado");
+                }
+                if (typeof dibujarOndas === 'function') {
+                    dibujarOndas(sismoLat, sismoLon, mapUltimo, colorOndaDinamico, tiempoDesfase, false, d.zona);
+                }
+            } catch (err) {
+                console.error("Error crítico al dibujar:", err);
+            }
+        });
     }
-    
-    requestAnimationFrame(() => {
-        try {
-            if (typeof actualizarMarcadorEpicentro === 'function') {
-                actualizarMarcadorEpicentro(sismoLat, sismoLon, esSeveroVisual ? "Fuerte" : "Ligero / Moderado");
-            }
-            if (typeof dibujarOndas === 'function') {
-                dibujarOndas(sismoLat, sismoLon, mapUltimo, colorOndaDinamico, tiempoDesfase, esEscalacionSevera);
-            }
-        } catch (err) {
-            console.error("Error crítico al dibujar:", err);
-        }
-    });
     
     if (typeof actualizarCirculosCiudades === 'function') {
         actualizarCirculosCiudades(sismoLat, sismoLon, window.tipoOrigenActual);
@@ -1232,157 +1334,202 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     
     if (window.timeoutCierre) clearTimeout(window.timeoutCierre);
     if (window.timeoutCierreSismoDos) clearTimeout(window.timeoutCierreSismoDos);
-    window.timeoutCierre = setTimeout(() => { detenerAlerta(); window.intervaloETA = null; window.segundosRestantesETA = null; }, 500000);
-    window.timeoutCierreSismoDos = setTimeout(() => { resetearSensores(); }, 500000);
+    window.timeoutCierre = setTimeout(() => { detenerAlerta(); window.intervaloETA = null; window.segundosRestantesETA = null; window.sismoMenorEnProgreso = false; }, 500000);
+    window.timeoutCierreSismoDos = setTimeout(() => { resetearSensores(); window.sismoMenorEnProgreso = false; }, 500000);
 }
 
-function dibujarOndas(lat, lon, mapa, colorS, desfase = 0, esActualizacion = false) {
-    if (!mapa || !mapa.getSource('ondas')) return;
-    window.colorOndaSActualPersistente = 'rgba(82, 226, 113, 0.63)';
-    if (esActualizacion && window.intervaloOndas) {
-        return; 
-    }
-    if (window.intervaloOndas) {
-        clearInterval(window.intervaloOndas);
-        window.intervaloOndas = null;
-    } 
+function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion = false, zonaReporte = "") {
+    const mapaActual = mapaParam || mapUltimo;
+    if (!mapaActual) return;
 
-    const idSismoUnico = `${lat}_${lon}_${Date.now()}`;
-    window.idSismoActualActivo = idSismoUnico;
-    
+    let colorOndaSActualPersistente = colorS || 'rgba(82, 226, 113, 0.63)';
     let desfaseSegs = parseFloat(desfase);
     if (isNaN(desfaseSegs) || desfaseSegs > 200 || desfaseSegs < 0) {
         desfaseSegs = 0; 
     }
-    
-    const inicio = Date.now() - ((desfaseSegs + 6) * 1000);
-    let lineasFeatures = [];
-    
-    let sensoresConEstado = MIS_SENSORES.filter(s => s.lat && s.lon).map((s, index) => {
-        const idCorto = (s.id || "").trim().toUpperCase();
-        const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
-        if (estadoGuardado === 'false') {
-            s.activo = false;
-        }
-        return {
-            ...s,
-            idOriginal: index, 
-            dist: calcularDistancia(lat, lon, parseFloat(s.lat), parseFloat(s.lon)),
-            colorPersistente: (s.activo === false) ? '#ff0000' : '#00ff00',
-            yaSonado: false
-        };
-    }).sort((a, b) => a.dist - b.dist);
 
-    window.intervaloOndas = setInterval(() => {
-        try {
-            if (!bloqueoPorAlerta || window.idSismoActualActivo !== idSismoUnico) {
-                clearInterval(window.intervaloOndas);
-                window.intervaloOndas = null; 
-                return;
-            }          
-            
-            const segs = (Date.now() - inicio) / 1000;
-            const rP = segs * 6.0;
-            const rS = segs * 3.4;      
-            
-            if (segs > 240 || rP > 1440) {
-                clearInterval(window.intervaloOndas);
-                window.intervaloOndas = null;
-                if (mapa.getSource('ondas')) mapa.getSource('ondas').setData({ 'type': 'FeatureCollection', 'features': [] });
-                if (mapa.getSource('lineas-sensores')) mapa.getSource('lineas-sensores').setData({ 'type': 'FeatureCollection', 'features': [] });
-                const tickerEl = document.getElementById('ticker-text');
-                if (tickerEl) tickerEl.innerHTML = "";
-                return;
-            } 
+    if (!window.sismosActivos) {
+        window.sismosActivos = [];
+    }
 
-            let ultimoSensorTexto = "";
-            const origenActual = window.tipoOrigenActual || "MODERATE";
-            let topeMaximo = (origenActual === "SEVERE") ? 26 : 10; 
-            
-            const featuresSensores = sensoresConEstado.map((s, index) => {
-                const idSensor = s.nombre || s.id || "S";
-                let colorActual = s.colorPersistente;
-                
-                if (s.activo === false) {
-                    return {
-                        'type': 'Feature',
-                        'id': s.idOriginal, 
-                        'properties': { 'color': '#ff0000', 'nombre': s.nombre },
-                        'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
-                    };
-                }
-                
-                if (index < topeMaximo && rP >= s.dist) {
-                    if (!s.yaSonado && typeof sonidoActivado !== 'undefined' && sonidoActivado) {
-                        s.yaSonado = true;
-                        let intensidadLogTexto = (origenActual === "SEVERE" && s.dist < 450) ? "Fuerte" : "Ligero/Moderado";
-                        registrarLogSensor(idSensor, `#TenemosSismo - detección ${intensidadLogTexto}`, "alerta");
-                        
-                        let idAudio = (origenActual === "SEVERE") ? 'sonidointensidadfuerte' : 'sonidointensidadmoderado';
-                        const sonidoBase = document.getElementById(idAudio);
-                        if (sonidoBase) {
-                            const clonSonido = sonidoBase.cloneNode();
-                            clonSonido.volume = (idAudio === 'sonidointensidadfuerte') ? 0.8 : 0.5;
-                            clonSonido.play().catch(e => {});
-                        }
-                    }          
-                    
-                    if (origenActual === "SEVERE") {
-                        colorActual = (index < 8) ? '#ff0000' : '#a9f135';
-                    } else {
-                        colorActual = '#a9f135';
-                    }      
-                    
-                    s.colorPersistente = colorActual;
-                    ultimoSensorTexto = `<span style="color:${colorActual}">${idSensor.toUpperCase()} </span>`;
-                    
-                    const yaTieneLinea = lineasFeatures.some(l => l.properties.id === idSensor);
-                    if (!yaTieneLinea) {
-                        lineasFeatures.push({
-                            'type': 'Feature',
-                            'properties': { 'id': idSensor },
-                            'geometry': {
-                                'type': 'LineString',
-                                'coordinates': [[lon, lat], [parseFloat(s.lon), parseFloat(s.lat)]]
-                            }
-                        });
-                    }
-                }
-                
-                return {
-                    'type': 'Feature',
-                    'id': s.idOriginal, 
-                    'properties': { 'color': colorActual, 'nombre': s.nombre },
-                    'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
-                };
-            });
-            
-            const tickerEl = document.getElementById('ticker-text');
-            if (tickerEl && ultimoSensorTexto !== "") {
-                if (tickerEl.innerHTML !== ultimoSensorTexto) tickerEl.innerHTML = ultimoSensorTexto;
-                if (window.timerTicker) clearTimeout(window.timerTicker);
-                window.timerTicker = setTimeout(() => { tickerEl.innerHTML = ""; }, 6000);
+    if (esActualizacion) {
+        if (window.sismosActivos.length > 0) {
+            let sismoObjetivo = window.sismosActivos.find(s => {
+                let tiempoTranscurrido = (Date.now() - s.inicio) / 1000;
+                return (s.zonaReporte && s.zonaReporte === zonaReporte) && tiempoTranscurrido < 15;
+            }) || window.sismosActivos[window.sismosActivos.length - 1];
+
+            if (sismoObjetivo) {
+                sismoObjetivo.colorS = colorOndaSActualPersistente;
             }
+        }
+    } else {
+        const inicio = Date.now() - ((desfaseSegs + 7) * 1000);
+        const idSismoUnico = `${lat}_${lon}_${Date.now()}`;
+        let sensoresConEstado = MIS_SENSORES.filter(s => s.lat && s.lon).map((s, index) => {
+            const idCorto = (s.id || "").trim().toUpperCase();
+            const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
+            if (estadoGuardado === 'false') {
+                s.activo = false;
+            }
+            return {
+                ...s,
+                idOriginal: index, 
+                dist: calcularDistancia(lat, lon, parseFloat(s.lat), parseFloat(s.lon)),
+                colorPersistente: (s.activo === false) ? '#ff0000' : '#00ff00',
+                yaSonado: false
+            };
+        }).sort((a, b) => a.dist - b.dist);
+
+        const nuevoSismoActivo = {
+            id: idSismoUnico,
+            lat: lat,
+            lon: lon,
+            inicio: inicio,
+            colorS: colorOndaSActualPersistente,
+            zonaReporte: zonaReporte,
+            sensores: sensoresConEstado
+        };
+
+        window.sismosActivos.push(nuevoSismoActivo);
+    }
+
+    if (window.intervaloOndasGlobal) {
+        return; 
+    }
+
+    window.intervaloOndasGlobal = setInterval(() => {
+        try {
+            const mTarget = window.mapUltimo || mapaActual;
+            if (window.estaReseteando || !window.sismosActivos || window.sismosActivos.length === 0) {
+                clearInterval(window.intervaloOndasGlobal);
+                window.intervaloOndasGlobal = null;
+                window.sismosActivos = [];
+                if (mTarget && mTarget.getSource && mTarget.getSource('ondas')) {
+                    mTarget.getSource('ondas').setData({ 'type': 'FeatureCollection', 'features': [] });
+                }
+                if (mTarget && mTarget.getSource && mTarget.getSource('lineas-sensores')) {
+                    mTarget.getSource('lineas-sensores').setData({ 'type': 'FeatureCollection', 'features': [] });
+                }
+                return;
+            }
+
+            const ahora = Date.now();
+            let todosFeaturesOndas = [];
+            let lineasFeatures = [];
+            let featuresSensoresMap = [];
             
-            if (mapa.getSource('lineas-sensores')) mapa.getSource('lineas-sensores').setData({ 'type': 'FeatureCollection', 'features': lineasFeatures });
-            
-            const sourceSensoresId = mapa.getSource('sensores-alerta') ? 'sensores-alerta' : 'epicenter-history';
-            if (mapa.getSource(sourceSensoresId)) mapa.getSource(sourceSensoresId).setData({ 'type': 'FeatureCollection', 'features': featuresSensores });
-            
-            const circuloP = crearCirculo([lon, lat], rP);
-            const circuloS = crearCirculo([lon, lat], rS);
-            
-            if (mapa.getSource('ondas')) {
-                mapa.getSource('ondas').setData({
-                    'type': 'FeatureCollection',
-                    'features': [
-                        { 'type': 'Feature', 'properties': { 'tipo': 'P' }, 'geometry': { 'type': 'Polygon', 'coordinates': circuloP } },
-                        { 'type': 'Feature', 'properties': { 'tipo': 'S', 'color': window.colorOndaSActualPersistente }, 'geometry': { 'type': 'Polygon', 'coordinates': circuloS } }
-                    ]
+            window.sismosActivos = window.sismosActivos.filter(sismo => {
+                const segs = (ahora - sismo.inicio) / 1000;
+                return segs <= 240;
+            });
+
+            if (window.sismosActivos.length === 0) {
+                clearInterval(window.intervaloOndasGlobal);
+                window.intervaloOndasGlobal = null;
+                if (mTarget && mTarget.getSource && mTarget.getSource('ondas')) {
+                    mTarget.getSource('ondas').setData({ 'type': 'FeatureCollection', 'features': [] });
+                }
+                if (mTarget && mTarget.getSource && mTarget.getSource('lineas-sensores')) {
+                    mTarget.getSource('lineas-sensores').setData({ 'type': 'FeatureCollection', 'features': [] });
+                }
+                return;
+            }
+
+            window.sismosActivos.forEach(sismo => {
+                const segs = (ahora - sismo.inicio) / 1000;
+                const rP = segs * 6.0;
+                const rS = segs * 3.4;
+
+                const circuloP = crearCirculo([sismo.lon, sismo.lat], rP);
+                const circuloS = crearCirculo([sismo.lon, sismo.lat], rS);
+
+                todosFeaturesOndas.push(
+                    { 'type': 'Feature', 'properties': { 'tipo': 'P', 'idSismo': sismo.id }, 'geometry': { 'type': 'Polygon', 'coordinates': circuloP } },
+                    { 'type': 'Feature', 'properties': { 'tipo': 'S', 'color': sismo.colorS, 'idSismo': sismo.id }, 'geometry': { 'type': 'Polygon', 'coordinates': circuloS } }
+                );
+
+                const origenActual = window.tipoOrigenActual || "MODERATE";
+                let topeMaximo = (origenActual === "SEVERE") ? 26 : 10;
+                let aplicarMultiSensor = (origenActual !== "SEVERE" || window.sismoMenorEnProgreso);
+
+                sismo.sensores.forEach((s, index) => {
+                    const idSensor = s.nombre || s.id || "S";
+                    let colorActual = s.colorPersistente;
+
+                    if (s.activo === false) {
+                        featuresSensoresMap.push({
+                            'type': 'Feature',
+                            'id': s.idOriginal,
+                            'properties': { 'color': '#ff0000', 'nombre': s.nombre },
+                            'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                        });
+                        return;
+                    }
+
+                    if (index < topeMaximo && rP >= s.dist && aplicarMultiSensor) {
+                        if (!s.yaSonado && typeof sonidoActivado !== 'undefined' && sonidoActivado) {
+                            s.yaSonado = true;
+                            let intensidadLogTexto = (origenActual === "SEVERE" && s.dist < 450) ? "Fuerte" : "Ligero/Moderado";
+                            registrarLogSensor(idSensor, `#TenemosSismo - detección ${intensidadLogTexto}`, "alerta");
+                            
+                            let idAudio = (origenActual === "SEVERE") ? 'sonidointensidadfuerte' : 'sonidointensidadmoderado';
+                            const sonidoBase = document.getElementById(idAudio);
+                            if (sonidoBase) {
+                                const clonSonido = sonidoBase.cloneNode();
+                                clonSonido.volume = (idAudio === 'sonidointensidadfuerte') ? 0.8 : 0.5;
+                                clonSonido.play().catch(e => {});
+                            }
+                        }
+
+                        colorActual = (origenActual === "SEVERE" && index < 8) ? '#ff0000' : '#a9f135';
+                        s.colorPersistente = colorActual;
+
+                        const yaTieneLinea = lineasFeatures.some(l => l.properties.id === idSensor && l.properties.idSismo === sismo.id);
+                        if (!yaTieneLinea) {
+                            lineasFeatures.push({
+                                'type': 'Feature',
+                                'properties': { 'id': idSensor, 'idSismo': sismo.id },
+                                'geometry': {
+                                    'type': 'LineString',
+                                    'coordinates': [[sismo.lon, sismo.lat], [parseFloat(s.lon), parseFloat(s.lat)]]
+                                }
+                            });
+                        }
+                    }
+
+                    featuresSensoresMap.push({
+                        'type': 'Feature',
+                        'id': s.idOriginal,
+                        'properties': { 'color': colorActual, 'nombre': s.nombre },
+                        'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                    });
                 });
+            });
+
+            if (mTarget && mTarget.getSource) {
+                if (mTarget.getSource('ondas')) {
+                    mTarget.getSource('ondas').setData({
+                        'type': 'FeatureCollection',
+                        'features': todosFeaturesOndas
+                    });
+                }
+                if (mTarget.getSource('lineas-sensores')) {
+                    mTarget.getSource('lineas-sensores').setData({
+                        'type': 'FeatureCollection',
+                        'features': lineasFeatures
+                    });
+                }
+                const sourceSensoresId = mTarget.getSource('sensores-alerta') ? 'sensores-alerta' : 'epicenter-history';
+                if (mTarget.getSource(sourceSensoresId) && featuresSensoresMap.length > 0) {
+                    mTarget.getSource(sourceSensoresId).setData({
+                        'type': 'FeatureCollection',
+                        'features': featuresSensoresMap
+                    });
+                }
             }
         } catch (error) {
-            console.error("Error en intervalo dibujarOndas:", error);
+            console.error("Error en intervalo global multi-ondas:", error);
         }
     }, 100);
 }
@@ -2057,7 +2204,7 @@ function verificarTerminos() {
         if (document.getElementById('modal-terminos')) {
             document.getElementById('modal-terminos').style.display = 'none';
         }
-        crearBotonConectarDVR();
+        crearBotonArranqueSasepa();
     } else {
         mostrarAppMonitor();
         document.getElementById('modal-terminos').style.display = 'flex';
@@ -2078,12 +2225,11 @@ async function aceptarTerminos() {
     await iniciarDVRSASEPA();
 }
 
-function crearBotonConectarDVR() {
+function crearBotonArranqueSasepa() {
     const login = document.getElementById('login-screen');
     if (login) login.style.display = 'none';
     const contenedorFijar = document.createElement('div');
-    contenedorFijar.id = 'conector-dvr-pantalla';
-    
+    contenedorFijar.id = 'conector-sasepa-pantalla';
     Object.assign(contenedorFijar.style, {
         position: 'fixed',
         top: '50%',
@@ -2093,15 +2239,13 @@ function crearBotonConectarDVR() {
         textAlign: 'center',
         fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
     });
-
     contenedorFijar.innerHTML = `
-        <button id="btn-arranque-dvr" style="background: rgba(5, 10, 20, 0.9); border: 2px solid #00d4ff; color: #00d4ff; font-weight: bold; padding: 15px 35px; font-size: 1.2em; border-radius: 8px; cursor: pointer; box-shadow: 0 0 15px rgba(0, 212, 255, 0.4); letter-spacing: 1px; transition: all 0.3s ease; backdrop-filter: blur(5px);">
-            <i class="fas fa-plug" style="margin-right: 10px;"></i> CONECTAR MONITOR SASEPA V8
+        <button id="btn-arranque-sasepa" style="background: rgba(5, 10, 20, 0.9); border: 2px solid #00d4ff; color: #00d4ff; font-weight: bold; padding: 15px 35px; font-size: 1.2em; border-radius: 8px; cursor: pointer; box-shadow: 0 0 15px rgba(0, 212, 255, 0.4); letter-spacing: 1px; transition: all 0.3s ease; backdrop-filter: blur(5px);">
+            <i class="fas fa-play" style="margin-right: 10px;"></i> INICIAR MONITOR SASEPA V8
         </button>
     `;
-
     document.body.appendChild(contenedorFijar);
-    document.getElementById('btn-arranque-dvr').onclick = async function() {
+    document.getElementById('btn-arranque-sasepa').onclick = async function() {
         contenedorFijar.remove(); 
         if (!window.audioContext) {
             window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -2110,7 +2254,6 @@ function crearBotonConectarDVR() {
             await window.audioContext.resume();
         }
 
-        await iniciarDVRSASEPA();
         mostrarAppMonitor();
     };
 }
@@ -2144,6 +2287,7 @@ async function limpiarAudios() {
 }
 
 async function resetTotalMapa() {
+    window.estaReseteando = true;
     if (window.audioContext) {
         await window.audioContext.suspend();
     }
@@ -2152,12 +2296,33 @@ async function resetTotalMapa() {
         audio.pause();
         audio.currentTime = 0;
     });
-    const timers = [window.intervaloOndas, window.intervaloETA, window.timerTicker, window.timeoutCierre, window.timeoutCiudades, window.timeoutEpicentroLimpieza];
-    timers.forEach(t => { if (t) clearTimeout(t); });
-    if (window.intervaloOndas) clearInterval(window.intervaloOndas);
-    if (window.intervaloETA) clearInterval(window.intervaloETA);
+    const idMaximoIntervalo = window.setInterval(() => {}, 9999);
+    for (let i = 1; i <= idMaximoIntervalo; i++) {
+        window.clearInterval(i);
+    }
+    const idMaximoTimeout = window.setTimeout(() => {}, 9999);
+    for (let i = 1; i <= idMaximoTimeout; i++) {
+        window.clearTimeout(i);
+    }
+    window.intervaloOndas = null;
+    window.intervaloOndasGlobal = null;
+    window.intervaloETA = null;
+    window.timerTicker = null;
+    window.timeoutCierre = null;
+    window.timeoutCierreSismoDos = null;
+    window.timeoutCiudades = null;
+    window.timeoutEpicentroLimpieza = null;
+    window.sismosActivos = [];
+    window.idSismoActualActivo = null;
+    window.lastSismoLat = null;
+    window.lastSismoLon = null;
+    window.lastSismoZona = null;
+    window.segundosRestantesETA = null;
     const tickerEl = document.getElementById('ticker-text');
-    if (tickerEl) tickerEl.innerHTML = "";
+    if (tickerEl) {
+        tickerEl.innerHTML = "";
+        tickerEl.removeAttribute('data-actual-id');
+    }
     const banner = document.getElementById('alert-container');
     if (banner) banner.style.display = 'none'; 
     const panicOverlay = document.getElementById('panic-overlay');
@@ -2165,24 +2330,31 @@ async function resetTotalMapa() {
     const cuadroCiudades = document.getElementById('cuadro-ciudades');
     if (cuadroCiudades) cuadroCiudades.style.display = 'none'; 
     if (mapUltimo) {
-        ['ondas', 'lineas-sensores', 'epicentro'].forEach(f => {
-            const source = mapUltimo.getSource(f);
-            if (source) source.setData({ 'type': 'FeatureCollection', 'features': [] });
-        });
-        if (mapUltimo.getSource('ciudades-difusion')) {
-            mapUltimo.getSource('ciudades-difusion').setData({ 'type': 'FeatureCollection', 'features': [] });
-        }
-        if (window.MIS_SENSORES && mapUltimo.getSource('sensores-alerta')) {
-            const featuresBase = window.MIS_SENSORES.map((s, index) => ({
-                'type': 'Feature',
-                'id': index, 
-                'properties': { 'color': '#00ff00', 'nombre': s.nombre },
-                'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
-            }));
-            mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresBase });
-            bloqueoPorAlerta = false; 
-        }
+        const limpiarCapasMapa = () => {
+            ['ondas', 'lineas-sensores', 'epicentro', 'ciudades-telemetria', 'ciudades-difusion'].forEach(f => {
+                if (mapUltimo.getSource(f)) {
+                    mapUltimo.getSource(f).setData({ 'type': 'FeatureCollection', 'features': [] });
+                }
+            });
+
+            if (window.MIS_SENSORES && mapUltimo.getSource('sensores-alerta')) {
+                const featuresBase = window.MIS_SENSORES.map((s, index) => ({
+                    'type': 'Feature',
+                    'id': index, 
+                    'properties': { 'color': '#00ff00', 'nombre': s.nombre },
+                    'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
+                }));
+                mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresBase });
+            }
+        };
+
+        limpiarCapasMapa();
+        setTimeout(limpiarCapasMapa, 100);
+        bloqueoPorAlerta = false; 
     }
+    setTimeout(() => {
+        window.estaReseteando = false;
+    }, 500);
 }
 
 async function resetearSensores() {
@@ -2199,39 +2371,35 @@ async function resetearSensores() {
             audioNode.loop = false; 
         }
     });
-
     if (window.audioContext && window.audioContext.state !== 'closed') {
         await window.audioContext.suspend(); 
     }
-
     if (window.intervaloOndas) clearInterval(window.intervaloOndas);
+    if (window.intervaloOndasGlobal) clearInterval(window.intervaloOndasGlobal);
     if (window.intervaloETA) clearInterval(window.intervaloETA);
     if (window.timerTicker) clearTimeout(window.timerTicker); 
     if (window.timeoutCierre) clearTimeout(window.timeoutCierre);
     if (window.timeoutCierreSismoDos) clearTimeout(window.timeoutCierreSismoDos);
     if (window.timeoutCiudades) clearTimeout(window.timeoutCiudades);
-    
     window.intervaloOndas = null; 
+    window.intervaloOndasGlobal = null;
+    if (window.sismosActivos) window.sismosActivos = [];
     window.lastSismoLat = 0;
     window.lastSismoLon = 0;
     window.lastSismoZona = "";
     window.segundosRestantesETA = null;
-
     const tickerEl = document.getElementById('ticker-text');
     if (tickerEl) tickerEl.innerHTML = "";
-
     const banner = document.getElementById('alert-container');
     const bannerBg = document.getElementById('banner-bg');
     if (banner) banner.style.display = 'none';
     if (bannerBg) bannerBg.classList.remove('fuerte-glow', 'moderado-glow');
     const panicOverlay = document.getElementById('panic-overlay');
     if (panicOverlay) panicOverlay.remove();
-
     const cuadroCiudades = document.getElementById('cuadro-ciudades');
     if (cuadroCiudades) {
         cuadroCiudades.style.display = 'none';
     }
-
     if (mapUltimo) {
         ['ondas', 'lineas-sensores', 'epicentro', 'ciudades-difusion'].forEach(f => {
             const source = mapUltimo.getSource(f);
@@ -2242,7 +2410,6 @@ async function resetearSensores() {
         if (mapUltimo.getLayer('layer-sensores-puntos')) {
             mapUltimo.setPaintProperty('layer-sensores-puntos', 'circle-color', '#00ff00');
         }
-
         if (window.MIS_SENSORES && mapUltimo.getSource('sensores-alerta')) {
             const featuresBase = window.MIS_SENSORES.map((s, index) => {
                 const idCorto = (s.id || "").trim().toUpperCase();
@@ -2477,7 +2644,7 @@ function ejecutarGeocodingDirecto(query) {
                 
                 const el = document.createElement('div');
                 el.className = 'mapboxgl-user-location-dot';
-
+                el.style.backgroundImage = "url('img/ubicacion.png')";
                 window.userMarkerUltimo = new mapboxgl.Marker(el)
                     .setLngLat(userCoords)
                     .addTo(mapUltimo);
@@ -2641,118 +2808,6 @@ function mostrarStatusServidorv8() {
             }
         }, 1000);
     }, 10000); 
-}
-
-async function iniciarDVRSASEPA() {
-    try {
-        streamGrabacion = await navigator.mediaDevices.getDisplayMedia({
-            video: { frameRate: 30, displaySurface: "browser" },
-            audio: false 
-        });
-
-        let opcionesMime = { mimeType: 'video/webm; codecs=text/html,chromium-webm-video-v3,h264' };
-        if (!MediaRecorder.isTypeSupported(opcionesMime.mimeType)) {
-            opcionesMime = { mimeType: 'video/webm; codecs=h264' };
-        }
-        if (!MediaRecorder.isTypeSupported(opcionesMime.mimeType)) {
-            opcionesMime = { mimeType: 'video/mp4; codecs=avc1.42E01E' };
-        }
-
-        mediaRecorder = new MediaRecorder(streamGrabacion, opcionesMime);
-        fragmentosGrabacion = [];
-
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-                fragmentosGrabacion.push(e.data);
-            }
-        };
-
-        mediaRecorder.onstop = () => {
-            procesarYDescargarMP4();
-        };
-
-        mediaRecorder.start(1000);
-        console.log("DVR: Monitoreo y grabación H264 en segundo plano activa.");
-
-    } catch (err) {
-        console.error("No se pudo iniciar el DVR:", err);
-    }
-}
-
-function cortarYGuardarSismo() {
-    if (!mediaRecorder || mediaRecorder.state === "inactive" || dvrGrabandoSismo) return;
-    dvrGrabandoSismo = true;
-
-    setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop(); 
-        }
-    }, 300000); 
-}
-
-function procesarYDescargarMP4() {
-    const blobVideo = new Blob(fragmentosGrabacion, { type: 'video/mp4' });
-    const url = URL.createObjectURL(blobVideo);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Evento_SASEPA_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.mp4`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    fragmentosGrabacion = [];
-    dvrGrabandoSismo = false;
-    
-    reiniciarGrabacionSilenciosa();
-}
-
-function reiniciarGrabacionSilenciosa() {
-    if (!streamGrabacion || !streamGrabacion.active) {
-        console.warn("La sesión de captura se perdió. Solicitando de nuevo...");
-        iniciarDVRSASEPA(); 
-        return;
-    }
-
-    try {
-        let opcionesMime = { mimeType: 'video/webm; codecs=text/html,chromium-webm-video-v3,h264' };
-        if (!MediaRecorder.isTypeSupported(opcionesMime.mimeType)) {
-            opcionesMime = { mimeType: 'video/webm; codecs=h264' };
-        }
-        if (!MediaRecorder.isTypeSupported(opcionesMime.mimeType)) {
-            opcionesMime = { mimeType: 'video/mp4; codecs=avc1.42E01E' };
-        }
-
-        mediaRecorder = new MediaRecorder(streamGrabacion, opcionesMime);
-
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-                fragmentosGrabacion.push(e.data);
-            }
-        };
-
-        mediaRecorder.onstop = () => {
-            procesarYDescargarMP4();
-        };
-
-        mediaRecorder.start(1000);
-        
-        intervaloBufer = setInterval(() => {
-            if (dvrBloqueadoPorSismo) return;
-
-            if (fragmentosGrabacion.length > 0) {
-                buferCircular.push(fragmentosGrabacion.shift());
-                if (buferCircular.length > 5) {
-                    buferCircular.shift();
-                }
-            }
-        }, 1000);
-
-        console.log("DVR: Grabación en bucle reanudada en segundo plano.");
-
-    } catch (err) {
-        console.error("Error al reiniciar la grabadora en segundo plano:", err);
-    }
 }
 
 function togglePanelLogs() {
