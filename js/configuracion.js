@@ -1324,7 +1324,6 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
                 setTimeout(() => { if (sonidoGral) { sonidoGral.loop = false; sonidoGral.currentTime = 0; sonidoGral.play().catch(e => {}); } }, 800);
             }
         }
-        cortarYGuardarSismo();
         bloqueoPorAlerta = true;
         limpiarReportesDeSensoresParaAlerta();
         renderizarBannerVisual();
