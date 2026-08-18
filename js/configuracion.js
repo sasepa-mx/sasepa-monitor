@@ -193,11 +193,10 @@ function toggleMenuAudio() {
         const audioId = audio.id || `audio_${index}`;
         const currentSrc = audio.src || (audio.querySelector('source') ? audio.querySelector('source').src : 'Sin fuente');
         const fileName = currentSrc.split('/').pop() || 'Personalizado';
-        htmlContent.forEach ? null : null;
         htmlContent += `
             <div style="background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid #334155;">
                 <div style="font-size: 0.9rem; font-weight: 600; margin-bottom: 5px;">
-                    🔊 ID: <span style="color: #cbd5e1;">${audioId}</span>
+                ID: <span style="color: #cbd5e1;">${audioId}</span>
                 </div>
                 <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px; word-break: break-all;">
                     Actual: ${fileName}
@@ -209,8 +208,11 @@ function toggleMenuAudio() {
     });
     htmlContent += `
         </div>
-        <div style="margin-top: 15px; text-align: right;">
-            <button onclick="document.getElementById('audio-config-modal').style.display='none'" style="background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">Cerrar</button>
+        <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <button onclick="restablecerAudiosOriginales()" style="background: #ef4444; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">
+                <i class="fas fa-undo" style="margin-right: 5px;"></i> Reiniciar Originales
+            </button>
+            <button onclick="document.getElementById('audio-config-modal').style.display='none'" style="background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">Cerrar</button>
         </div>
     `;
     modal.innerHTML = htmlContent;
@@ -250,7 +252,21 @@ function cargarAudiosGuardados() {
             audio.load();
         }
     });
-}document.addEventListener('DOMContentLoaded', cargarAudiosGuardados);
+}
+document.addEventListener('DOMContentLoaded', cargarAudiosGuardados);
+
+function restablecerAudiosOriginales() {
+    if (!confirm("¿Estás seguro de restablecer los audios originales del sistema? Se eliminarán todas las personalizaciones.")) {
+        return;
+    }
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach((audio, index) => {
+        const audioId = audio.id || `audio_${index}`;
+        localStorage.removeItem(`sasepa_custom_audio_${audioId}`);
+    });
+    alert("¡Audios restablecidos con éxito! La página se recargará para aplicar los cambios.");
+    location.reload();
+}
 
 function actualizarCanalesAudio() {
     const chkAlertas = document.getElementById('check-audio-alertas');
