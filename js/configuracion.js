@@ -8,6 +8,8 @@ var CONFIG_AUDIOS = {
     sensores: true      
 };
 let desfaseServidorMs = 0;
+let sismosSSNActivosEnMapa = false;
+let popupSSNActual = null;
 window.memoriaLat = 0;
 window.memoriaLon = 0;
 if (typeof mapboxgl !== 'undefined' && window.MAPBOX_ACCESS_TOKEN) {
@@ -2886,11 +2888,178 @@ function limpiarLogs() {
     if (contenedor) contenedor.innerHTML = '';
 }
 
+function calcularMercalliYColor(mag, profundidad) {
+    let profEfectiva = Math.max(profundidad, 5); 
+    let intensidadAprox = (1.5 * mag) - (2.2 * Math.log10(profEfectiva)) + 1.0;
+    let val = Math.round(intensidadAprox);
+    
+    if (val < 1) val = 1;
+    if (val > 12) val = 12;
+
+    const tablaMercalli = {
+        1:  { romano: "I", desc: "No perceptible", color: "#ffffff", efecto: "Microsismos / sismógrafos" },
+        2:  { romano: "II", desc: "Muy débil", color: "#b0c4de", efecto: "Sentido en reposo" },
+        3:  { romano: "III", desc: "Débil", color: "#778899", efecto: "Sentido en edificios" },
+        4:  { romano: "IV", desc: "Ligero", color: "#00ced1", efecto: "Sentido fuera de edificios" },
+        5:  { romano: "V", desc: "Moderado", color: "#2ecc71", efecto: "Sentido por casi todos" },
+        6:  { romano: "VI", desc: "Fuerte", color: "#f1c40f", efecto: "Sentido por todos" },
+        7:  { romano: "VII", desc: "Muy fuerte", color: "#f39c12", efecto: "Daño moderado en estructuras" },
+        8:  { romano: "VIII", desc: "Severo", color: "#e67e22", efecto: "Daño considerable en estructuras" },
+        9:  { romano: "IX", desc: "Severo", color: "#e74c3c", efecto: "Daño grave y pánico" },
+        10: { romano: "X", desc: "Destructivo", color: "#c0392b", efecto: "Daños graves en construcciones resistentes" },
+        11: { romano: "XI", desc: "Destructivo", color: "#8e44ad", efecto: "Casi todo derrumbado" },
+        12: { romano: "XII", desc: "Destructivo", color: "#111111", efecto: "Destrucción total" }
+    };
+
+    return tablaMercalli[val] || tablaMercalli[5];
+}
+
+async function consultarUltimosSismosSSN() {
+    const tickerEl = document.getElementById('ticker-text');
+
+    if (typeof sismosSSNActivosEnMapa !== 'undefined' && sismosSSNActivosEnMapa) {
+        sismosSSNActivosEnMapa = false;
+        if (typeof popupSSNActual !== 'undefined' && popupSSNActual) { popupSSNActual.remove(); popupSSNActual = null; }
+        if (typeof mapUltimo !== 'undefined' && mapUltimo) {
+            if (mapUltimo.getLayer('sismos-ssn-layer-glow')) mapUltimo.removeLayer('sismos-ssn-layer-glow');
+            if (mapUltimo.getLayer('sismos-ssn-layer')) mapUltimo.removeLayer('sismos-ssn-layer');
+            if (mapUltimo.getSource('sismos-ssn-source')) mapUltimo.removeSource('sismos-ssn-source');
+        }
+        if (tickerEl) {
+            tickerEl.innerHTML = `<span style="color: #ffcc00; font-weight: bold;">[SSN] Capa desactivada.</span>`;
+            setTimeout(() => { tickerEl.innerHTML = ""; }, 3000);
+        }
+        return;
+    }
+
+    if (tickerEl) tickerEl.innerHTML = `<span style="color: #00d4ff; font-weight: bold;">[SSN] Sincronizando sismos desde la web del SSN...</span>`;
+
+    try {
+        const ssnUrl = 'http://www.ssn.unam.mx/sismicidad/ultimos/';
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ssnUrl)}`;
+
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error("Error al conectar con la página del SSN");
+
+        const htmlText = await res.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, "text/html");
+        
+        const filas = doc.querySelectorAll("table.table-condensed tr");
+        if (!filas || filas.length <= 1) throw new Error("No se encontraron registros en la tabla");
+
+        let geojsonFeatures = [];
+
+        filas.forEach((fila) => {
+            const celdas = fila.querySelectorAll("td");
+            if (celdas.length >= 4) {
+                const magText = celdas[0]?.textContent.trim() || "";
+                const mag = parseFloat(magText);
+                if (isNaN(mag)) return;
+
+                const fechaHoraText = celdas[1]?.textContent.trim() || "";
+                const epicentroCelda = celdas[2];
+                const localizacion = epicentroCelda?.querySelector("b")?.textContent.trim() || epicentroCelda?.textContent.trim() || "México";
+                const textoCompletoTerceraCelda = epicentroCelda?.textContent || "";
+                const coordsMatch = textoCompletoTerceraCelda.match(/(-?[\d.]+)°\s*,\s*(-?[\d.]+)°/);
+                
+                const profText = celdas[3]?.textContent.trim() || "10 km";
+                const profMatch = profText.match(/([\d.]+)/);
+                const prof = profMatch ? parseFloat(profMatch[1]) : 10;
+
+                if (coordsMatch) {
+                    const lat = parseFloat(coordsMatch[1]);
+                    const lon = parseFloat(coordsMatch[2]);
+
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        const mercalliInfo = typeof calcularMercalliYColor === 'function' 
+                            ? calcularMercalliYColor(mag, prof) 
+                            : { color: '#ffcc00', romano: 'IV', desc: "Moderado", efecto: 'Percibido' };
+
+                        geojsonFeatures.push({
+                            type: 'Feature',
+                            geometry: { type: 'Point', coordinates: [lon, lat] },
+                            properties: {
+                                magnitud: mag.toFixed(1),
+                                localizacion: localizacion,
+                                profundidad: prof.toFixed(1) + " km",
+                                fecha: fechaHoraText,
+                                color: mercalliInfo.color,
+                                mercalliRomano: mercalliInfo.romano,
+                                mercalliDesc: mercalliInfo.desc,
+                                efecto: mercalliInfo.efecto
+                            }
+                        });
+                    }
+                }
+            }
+        });
+
+        if (geojsonFeatures.length > 0 && typeof mapUltimo !== 'undefined' && mapUltimo) {
+            sismosSSNActivosEnMapa = true;
+            
+            if (mapUltimo.getSource('sismos-ssn-source')) {
+                mapUltimo.getSource('sismos-ssn-source').setData({ type: 'FeatureCollection', features: geojsonFeatures });
+            } else {
+                mapUltimo.addSource('sismos-ssn-source', { type: 'geojson', data: { type: 'FeatureCollection', features: geojsonFeatures } });
+                mapUltimo.addLayer({ id: 'sismos-ssn-layer-glow', type: 'circle', source: 'sismos-ssn-source', paint: { 'circle-radius': 10, 'circle-color': ['get', 'color'], 'circle-opacity': 0.5, 'circle-blur': 0.5 } });
+                mapUltimo.addLayer({ id: 'sismos-ssn-layer', type: 'circle', source: 'sismos-ssn-source', paint: { 'circle-radius': 4.5, 'circle-color': ['get', 'color'], 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff' } });
+
+                mapUltimo.on('click', 'sismos-ssn-layer', (e) => {
+                    const p = e.features[0].properties;
+                    if (typeof popupSSNActual !== 'undefined' && popupSSNActual) popupSSNActual.remove();
+                    const htmlChingon = `
+                        <div style="padding: 0; margin: -10px; border-radius: 10px; overflow: hidden; background: #0b1120; border: 1px solid #38bdf8; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                            <div style="background: linear-gradient(90deg, #0284c7, #0f172a); padding: 8px 12px; color: white; font-weight: bold; text-transform: uppercase; font-size: 10px; letter-spacing: 1px;">
+                                <i class="fas fa-wave-square"></i> REPORTE OFICIAL SSN
+                            </div>
+                            <div style="padding: 12px;">
+                                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                    <div style="font-size: 18px; color: #fbbf24; margin-right: 10px; font-weight: 800;">M ${p.magnitud}</div>
+                                    <div>
+                                        <div style="color: #94a3b8; font-size: 9px; text-transform: uppercase;">Intensidad Mercalli</div>
+                                        <div style="color: ${p.color}; font-weight: bold; font-size: 11px; text-shadow: 0px 0px 2px rgba(0,0,0,0.8);">${p.mercalliRomano} - ${p.mercalliDesc}</div>
+                                    </div>
+                                </div>
+                                <div style="color: #f1f5f9; font-size: 11px; margin-bottom: 8px; line-height: 1.3;">${p.localizacion}</div>
+                                <div style="display: flex; justify-content: space-between; border-top: 1px solid #1e293b; padding-top: 8px;">
+                                    <div style="color: #38bdf8; font-size: 9px;">PROF: <span style="color:#fff">${p.profundidad}</span></div>
+                                    <div style="color: #38bdf8; font-size: 9px;">FECHA: <span style="color:#fff">${p.fecha}</span></div>
+                                </div>
+                            </div>
+                        </div>`;
+                    popupSSNActual = new mapboxgl.Popup({ className: 'popup-ssn-custom' }).setLngLat(e.lngLat).setHTML(htmlChingon).addTo(mapUltimo);
+                });
+            }
+            if (tickerEl) tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.1); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-satellite-dish"></i> [SSN] ${geojsonFeatures.length} SISMOS CARGADOS DESDE LA WEB</div>`;
+        } else {
+            if (tickerEl) tickerEl.innerHTML = `<span style="color: #ff3333;">No se pudieron extraer registros.</span>`;
+        }
+    } catch (e) {
+        console.error("Error SSN:", e);
+        if (tickerEl) tickerEl.innerHTML = `<span style="color: #ff3333;">Error al parsear el sitio del SSN.</span>`;
+    }
+}
+
+function iniciarProgramadorSSN() {
+    consultarUltimosSismosSSN();
+    setInterval(() => {
+        const ahora = new Date();
+        const h = ahora.getHours();
+        const m = ahora.getMinutes();
+        if ((h === 8 || h === 20) && m === 0) {
+            consultarUltimosSismosSSN();
+        }
+    }, 60000);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    window.REPETIDORAS_SASMEX = generarRepetidorasSasmex();
-    solicitarPermisoNotificaciones();
-    iniciarReloj();
-    monitoreoServicio();
+    if(typeof generarRepetidorasSasmex === 'function') window.REPETIDORAS_SASMEX = generarRepetidorasSasmex();
+    if(typeof solicitarPermisoNotificaciones === 'function') solicitarPermisoNotificaciones();
+    if(typeof iniciarReloj === 'function') iniciarReloj();
+    if(typeof monitoreoServicio === 'function') monitoreoServicio();
+    
+    iniciarProgramadorSSN();
     
     const loginEl = document.getElementById('login-screen');
     const app = document.getElementById('app-content');
@@ -2900,8 +3069,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const s = document.createElement('script');
     s.src = "js/sensores.js?v=" + Date.now();
     s.onload = () => {
-        verificarTerminos();
-        mostrarConteoSimulacroNacional(); 
+        if(typeof verificarTerminos === 'function') verificarTerminos();
+        if(typeof mostrarConteoSimulacroNacional === 'function') mostrarConteoSimulacroNacional(); 
     };
     document.head.appendChild(s);
 });
