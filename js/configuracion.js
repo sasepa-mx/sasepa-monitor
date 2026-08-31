@@ -342,7 +342,7 @@ function inicializarMapa() {
     if (!mapUltimo) {
         mapUltimo = new mapboxgl.Map({
             container: 'mapa-ultimo-evento',
-            style: 'mapbox://styles/mapbox/navigation-night-v1',
+            style: 'mapbox://styles/mapbox/satellite-streets-v12',
             center: [-98.8525, 17.8322],
             zoom: 5.8,
             interactive: true, 
@@ -488,13 +488,13 @@ function iniciarEscuchaSismos() {
         protocol: 'wss',
         host: hostSeguro,
         port: 8884,
-        path: '/mqtt',                                         
+        path: '/mqtt',                                      
         clientId: 'SASEPA_Publico_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
         username: 'sasepa',
         password: '!QnVitpZBAjJx7k',
-        rejectUnauthorized: false                             
+        rejectUnauthorized: false                               
     };
     
     const clienteMQTT = mqtt.connect(opciones);
@@ -819,7 +819,7 @@ function iniciarEscuchaSismos() {
                 const datosNormalizados = {
                     lat: d.coordenadas?.latitud || d.lat || 0,
                     lon: d.coordenadas?.longitud || d.lon || 0,
-                    intensidad: d.intensidad || "Moderate",
+                    intensidad: d.intensidad || "(Moderate) Evento Menor",
                     zona: d.zona || "Zona indeterminada",
                     fecha: d.fecha || new Date().toISOString(),
                     esSimulacion: !!d.esSimulacion,
@@ -864,94 +864,6 @@ function iniciarEscuchaSismos() {
     clienteMQTT.on('close', () => { console.warn("MQTT Cerrado"); });
 }
 
-function mostrarConteoSimulacroNacional() {
-        const contenedor = document.getElementById('simulacro-nacional-container');
-        if (!contenedor) return;
-        contenedor.style.display = 'block';
-
-        if (intervaloSimulacroNacional) clearInterval(intervaloSimulacroNacional);
-
-        const fechaObjetivo = new Date('2026-09-19T12:00:00-06:00').getTime();
-
-        intervaloSimulacroNacional = setInterval(() => {
-            const ahora = Date.now();
-            const diferencia = fechaObjetivo - ahora;
-            const relojEl = document.getElementById('simulacro-nacional-reloj');
-
-            if (!relojEl) return;
-
-            if (diferencia <= 0) {
-                relojEl.textContent = "¡SIMULACRO EN DESARROLLO!";
-                return;
-            }
-
-            const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
-            const horas = Math.floor((diferencia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
-            const segundos = Math.floor((diferencia % (1000 * 60)) / 1000);
-
-            relojEl.textContent = `${dias}d ${String(horas).padStart(2, '0')}h ${String(minutos).padStart(2, '0')}m ${String(segundos).padStart(2, '0')}s`;
-        }, 1000);
-}
-
-function ocultarConteoSimulacroNacional() {
-        const contenedor = document.getElementById('simulacro-nacional-container');
-        if (contenedor) contenedor.style.display = 'none';
-        if (intervaloSimulacroNacional) {
-            clearInterval(intervaloSimulacroNacional);
-            intervaloSimulacroNacional = null;
-        }
-}
-
-function mostrarRecomendacionesProteccionCivil() {
-    if (document.getElementById('modal-proteccion-civil')) return;
-
-    const modal = document.createElement('div');
-    modal.id = 'modal-proteccion-civil';
-    Object.assign(modal.style, {
-        position: 'fixed',
-        top: '0',
-        left: '0',
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(5px)',
-        zIndex: '99999',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
-    });
-
-    modal.innerHTML = `
-        <div style="background: #0f1928; border: 2px solid #ffcc00; border-radius: 12px; padding: 25px; width: 90%; max-width: 450px; color: #fff; box-shadow: 0 0 25px rgba(255, 204, 0, 0.3); position: relative;">
-            <button onclick="cerrarRecomendacionesPC()" style="position: absolute; top: 12px; right: 15px; background: transparent; border: none; color: #ffcc00; font-size: 18px; font-weight: bold; cursor: pointer;">&times;</button>
-            
-            <h3 style="margin: 0 0 15px 0; color: #ffcc00; font-size: 16px; text-align: center; letter-spacing: 1px; text-transform: uppercase;">
-                <i class="fas fa-shield-alt"></i> Protocolo de Protección Civil
-            </h3>
-            
-            <div style="font-size: 13px; line-height: 1.6; color: #ddd; text-align: left;">
-                <p style="margin: 0 0 10px 0;">🛡️ <b>Antes del simulacro:</b> Identifica las zonas de menor riesgo, rutas de evacuación y salidas de emergencia.</p>
-                <p style="margin: 0 0 10px 0;">🛑 <b>Durante el evento:</b> Conserva la calma. <b>No corro, no empujo, no grito</b> y dirígete a la zona de seguridad establecida.</p>
-                <p style="margin: 0 0 10px 0;">⚡ <b>Acciones clave:</b> Si estás en una zona segura asignada, aléjate de ventanas, repisas, vidrios o postes y cables de luz.</p>
-                <p style="margin: 0;">✅ <b>Después del sismo:</b> Revisa si hay daños en tu inmueble, no enciendas cerillos o velas hasta descartar fuga de gas, y sigue las indicaciones de las autoridades.</p>
-            </div>
-            
-            <div style="text-align: center; margin-top: 20px;">
-                <button onclick="cerrarRecomendacionesPC()" style="background: #ffcc00; color: #0f1928; border: none; padding: 8px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px;">ENTENDIDO</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-}
-
-function cerrarRecomendacionesPC() {
-    const modal = document.getElementById('modal-proteccion-civil');
-    if (modal) modal.remove();
-}
-
 function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     if (window.intervaloETA) {
         clearInterval(window.intervaloETA);
@@ -966,7 +878,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         let texto = "";
         if (segsETA <= 0) {
             texto = "Sismo ocurriendo ahora en tu ubicación.";
-        } else if (intLocal.toUpperCase() === "FUERTE") {
+        } else if (intLocal.toUpperCase() === "ALERTA CRÍTICA") {
             texto = `Alerta sísmica. Sentirás sismo Fuerte en ${segsETA} segundos.`;
         } else {
             texto = `Sentirás el sismo en ${segsETA} segundos.`;
@@ -991,17 +903,17 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     }
 
     const intInput = (d.intensidad || "").toUpperCase();
-    let esSeveroVisual = (intInput.includes("SEVERE") || intInput.includes("SEVERO") || intInput.includes("FUERTE"));
-    let tipoAnterior = window.tipoOrigenActual || "MODERATE";
+    let esSeveroVisual = (intInput.includes("SEVERE") || intInput.includes("SEVERO") || intInput.includes("ALERTA SÍSMICA"));
+    let tipoAnterior = window.tipoOrigenActual || "Moderate";
     
     if (!esSeveroVisual) {
         window.sismoMenorEnProgreso = true;
     }
 
     if (esSeveroVisual) {
-        window.tipoOrigenActual = "SEVERE";
+        window.tipoOrigenActual = "Severe";
     } else {
-        window.tipoOrigenActual = "MODERATE";
+        window.tipoOrigenActual = "Moderate";
     }
 
     let sismoLat = 0;
@@ -1052,22 +964,22 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     if (userCoords && sCoordinateMatch()) {
         if (esSeveroVisual) {
             if (distanciaKM < 540) {
-                intensidadLocal = "Fuerte";
+                intensidadLocal = "Alerta Crítica";
                 colorPercepcion = "#ff0000";
                 esAlertaCritica = true;
             } else if (distanciaKM <= 987) {
-                intensidadLocal = "Ligero/Moderado";
+                intensidadLocal = "Evento Menor";
                 colorPercepcion = "#a9f135";
             }
         } else {
             if (distanciaKM < 70) {
-                intensidadLocal = "Ligero/Moderado";
+                intensidadLocal = "Evento Menor";
                 colorPercepcion = "#a9f135";
             }
         }
     }
 
-    let esUbicacionFuerte = (intensidadLocal === "Fuerte" || esAlertaCritica);
+    let esUbicacionFuerte = (intensidadLocal === "Alerta Crítica" || esAlertaCritica);
 
     function renderizarBannerVisual() {
         const banner = document.getElementById('alert-container');
@@ -1111,7 +1023,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
                                     <span style="color: #bbb; font-size: 0.9em;">Distancia al epicentro: ${distFinal} km</span>`;
         }
         
-        let textoFinal = esSeveroVisual ? "Fuerte" : "Ligero / Moderado";
+        let textoFinal = esSeveroVisual ? "Alerta Crítica" : "Evento Menor";
         let colorTextoOrigen = esSeveroVisual ? "#ff0000" : "#a9f135";
         
         if (bannerBg) {
@@ -1144,7 +1056,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         sismoActivoExistente = window.sismosActivos.find(s => {
             let esMismoSensorExacto = (s.zonaReporte && s.zonaReporte === d.zona);
             let tiempoTranscurridoSecs = (Date.now() - s.inicio) / 1000;
-            let esSismoPrevioFuerte = (window.tipoOrigenActual === "SEVERE" || s.colorS === '#ff0000');
+            let esSismoPrevioFuerte = (window.tipoOrigenActual === "Severe" || s.colorS === '#ff0000');
             if (esSismoPrevioFuerte && !esMismoSensorExacto) {
                 return false; 
             }
@@ -1198,7 +1110,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         }
     }
     
-    let esEscalacionSevera = esMismoSismo && (tipoAnterior === "MODERATE" && window.tipoOrigenActual === "SEVERE");
+    let esEscalacionSevera = esMismoSismo && (tipoAnterior === "Moderate" && window.tipoOrigenActual === "Severe");
     let tiempoDesfase = 0;
     if (d.timestamp_inicio) {
         let tsInicioCorr = d.timestamp_inicio < 9999999999 ? d.timestamp_inicio * 1000 : d.timestamp_inicio;
@@ -1239,7 +1151,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         requestAnimationFrame(() => {
             try {
                 if (typeof actualizarMarcadorEpicentro === 'function') {
-                    actualizarMarcadorEpicentro(sismoLat, sismoLon, esSeveroVisual ? "Fuerte" : "Ligero / Moderado");
+                    actualizarMarcadorEpicentro(sismoLat, sismoLon, esSeveroVisual ? "Alerta Crítica" : "Evento Menor");
                 }
                 if (typeof dibujarOndas === 'function') {
                     dibujarOndas(sismoLat, sismoLon, mapUltimo, colorOndaDinamico, tiempoDesfase, true, d.zona);
@@ -1334,7 +1246,7 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         requestAnimationFrame(() => {
             try {
                 if (typeof actualizarMarcadorEpicentro === 'function') {
-                    actualizarMarcadorEpicentro(sismoLat, sismoLon, esSeveroVisual ? "Fuerte" : "Ligero / Moderado");
+                    actualizarMarcadorEpicentro(sismoLat, sismoLon, esSeveroVisual ? "Alerta Crítica" : "Evento Menor");
                 }
                 if (typeof dibujarOndas === 'function') {
                     dibujarOndas(sismoLat, sismoLon, mapUltimo, colorOndaDinamico, tiempoDesfase, false, d.zona);
@@ -1466,9 +1378,9 @@ function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion 
                     { 'type': 'Feature', 'properties': { 'tipo': 'S', 'color': sismo.colorS, 'idSismo': sismo.id }, 'geometry': { 'type': 'Polygon', 'coordinates': circuloS } }
                 );
 
-                const origenActual = window.tipoOrigenActual || "MODERATE";
-                let topeMaximo = (origenActual === "SEVERE") ? 26 : 10;
-                let aplicarMultiSensor = (origenActual !== "SEVERE" || window.sismoMenorEnProgreso);
+                const origenActual = window.tipoOrigenActual || "Moderate";
+                let topeMaximo = (origenActual === "Severe") ? 26 : 10;
+                let aplicarMultiSensor = (origenActual !== "Severe" || window.sismoMenorEnProgreso);
 
                 sismo.sensores.forEach((s, index) => {
                     const idSensor = s.nombre || s.id || "S";
@@ -1487,10 +1399,10 @@ function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion 
                     if (index < topeMaximo && rP >= s.dist && aplicarMultiSensor) {
                         if (!s.yaSonado && typeof sonidoActivado !== 'undefined' && sonidoActivado) {
                             s.yaSonado = true;
-                            let intensidadLogTexto = (origenActual === "SEVERE" && s.dist < 450) ? "Fuerte" : "Ligero/Moderado";
+                            let intensidadLogTexto = (origenActual === "Severe" && s.dist < 450) ? "Alerta Crítica" : "Evento Menor";
                             registrarLogSensor(idSensor, `#TenemosSismo - detección ${intensidadLogTexto}`, "alerta");
                             
-                            let idAudio = (origenActual === "SEVERE") ? 'sonidointensidadfuerte' : 'sonidointensidadmoderado';
+                            let idAudio = (origenActual === "Severe") ? 'sonidointensidadfuerte' : 'sonidointensidadmoderado';
                             const sonidoBase = document.getElementById(idAudio);
                             if (sonidoBase) {
                                 const clonSonido = sonidoBase.cloneNode();
@@ -1499,7 +1411,7 @@ function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion 
                             }
                         }
 
-                        colorActual = (origenActual === "SEVERE" && index < 8) ? '#ff0000' : '#a9f135';
+                        colorActual = (origenActual === "Severe" && index < 8) ? '#ff0000' : '#a9f135';
                         s.colorPersistente = colorActual;
 
                         const yaTieneLinea = lineasFeatures.some(l => l.properties.id === idSensor && l.properties.idSismo === sismo.id);
@@ -1549,6 +1461,231 @@ function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion 
             console.error("Error en intervalo global multi-ondas:", error);
         }
     }, 100);
+}
+
+function lanzarPruebaSasepa() {
+    const menuViejo = document.getElementById('sasepa-sim-menu');
+    if (menuViejo) menuViejo.remove();
+
+    const menuHTML = document.createElement('div');
+    menuHTML.id = 'sasepa-sim-menu';
+    menuHTML.style.position = 'absolute';
+    menuHTML.style.top = '20px';
+    menuHTML.style.left = '50%';
+    menuHTML.style.transform = 'translateX(-50%)';
+    menuHTML.style.zIndex = '99999';
+    menuHTML.style.backgroundColor = 'rgba(15, 15, 20, 0.95)';
+    menuHTML.style.backdropFilter = 'blur(10px)';
+    menuHTML.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+    menuHTML.style.borderRadius = '12px';
+    menuHTML.style.padding = '16px 24px';
+    menuHTML.style.fontFamily = "'Segoe UI', Roboto, sans-serif";
+    menuHTML.style.color = '#ffffff';
+    menuHTML.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.7)';
+    menuHTML.style.textAlign = 'center';
+    menuHTML.style.minWidth = '320px';
+
+    menuHTML.innerHTML = `
+        <h4 style="margin: 0 0 8px 0; font-size: 16px; color: #00bcff; text-transform: uppercase; letter-spacing: 1px;">Simulación SASEPA</h4>
+        <p id="sim-instruccion" style="margin: 0; font-size: 13px; color: #cccccc;">📡 Selecciona un <b>sensor</b> activo en el mapa para usarlo como origen.</p>
+        <button id="btn-cancelar-sim" style="margin-top: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px;">Cancelar</button>
+    `;
+
+    document.body.appendChild(menuHTML);
+    mapUltimo.getCanvas().style.cursor = 'crosshair';
+
+    document.getElementById('btn-cancelar-sim').onclick = () => {
+        mapUltimo.getCanvas().style.cursor = '';
+        menuHTML.remove();
+    };
+    
+    mapUltimo.once('click', (e) => {
+        const { lng, lat } = e.lngLat;
+
+        if (!window.MIS_SENSORES || window.MIS_SENSORES.length === 0) {
+            console.error("No se encontró el array de sensores.");
+            mapUltimo.getCanvas().style.cursor = '';
+            menuHTML.remove();
+            return;
+        }
+
+        let sensorMasCercano = null;
+        let distanciaMinima = Infinity;
+
+        window.MIS_SENSORES.forEach(sensor => {
+            const R = 6371; 
+            const dLat = (sensor.lat - lat) * Math.PI / 180;
+            const dLon = (sensor.lon - lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat * Math.PI / 180) * Math.cos(sensor.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distancia = R * c; 
+
+            if (distancia < distanciaMinima) {
+                distanciaMinima = distancia;
+                sensorMasCercano = sensor;
+            }
+        });
+
+        const kmTolerancia = 15;
+        if (distanciaMinima > kmTolerancia) {
+            mapUltimo.getCanvas().style.cursor = '';
+            const instruccion = document.getElementById('sim-instruccion');
+            if (instruccion) {
+                instruccion.innerHTML = `⚠️ <span style="color: #ff3333;">ERROR: Debes seleccionar un sensor.</span><br>Por favor, selecciona un sensor o cancela la simulación.`;
+            }
+            setTimeout(() => { lanzarPruebaSasepa(); }, 1500);
+            return;
+        }
+
+        mapUltimo.getCanvas().style.cursor = '';
+
+        const obtenerZonaDinamica = (nombreEstacion) => {
+            if (!nombreEstacion) return "Zona de Cobertura Interna";
+            const nombreUpper = nombreEstacion.toUpperCase();
+            if (nombreUpper.includes("JL") || nombreUpper.includes("JALISCO")) return "Costa de Jalisco";
+            if (nombreUpper.includes("CL") || nombreUpper.includes("COLIMA")) return "Costa de Colima";
+            if (nombreUpper.includes("MC") || nombreUpper.includes("MICHOACÁN") || nombreUpper.includes("MICHOACAN")) return "Costa/Zona de Michoacán";
+            if (nombreUpper.includes("GR") || nombreUpper.includes("GUERRERO")) return "Costa/Zona de Guerrero";
+            if (nombreUpper.includes("PB") || nombreUpper.includes("PUEBLA")) return "Puebla";
+            if (nombreUpper.includes("OX") || nombreUpper.includes("OAXACA")) return "Costa/Zona de Oaxaca";
+            return "Zona de Cobertura Interna"; 
+        };
+
+        const zonaIdentificada = obtenerZonaDinamica(sensorMasCercano.nombre);
+
+        menuHTML.innerHTML = `
+            <h4 style="margin: 0 0 6px 0; font-size: 14px; color: #00bcff; text-transform: uppercase; letter-spacing: 1px;">Estación Detectada</h4>
+            <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px; margin-bottom: 14px; border: 1px solid rgba(255,255,255,0.05); font-size: 12px; text-align: left;">
+                <div style="margin-bottom: 4px;"><span style="color: #888;">Sensor:</span> <b style="color: #fff;">${sensorMasCercano.nombre}</b></div>
+                <div style="margin-bottom: 4px;"><span style="color: #888;">Región:</span> <span style="color: #fff;">${zonaIdentificada}</span></div>
+                <div><span style="color: #888;">Coord:</span> <span style="color: #00ffaa;">${sensorMasCercano.lat.toFixed(4)}, ${sensorMasCercano.lon.toFixed(4)}</span></div>
+            </div>
+            
+            <p style="margin: 0 0 8px 0; font-size: 11px; color: #aaa; text-align: left; font-weight: bold;">Selecciona Intensidad de Origen:</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; justify-content: center;">
+                <button id="btn-sim-severe" style="background: #ff2244; border: none; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(255,34,68,0.3);">Alerta Crítica</button>
+                <button id="btn-sim-moderate" style="background: #3de66f; border: none; color: #333; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(255,255,0,0.2);">Evento Menor</button>
+            </div>
+            <button id="btn-abortar-sim" style="margin-top: 16px; background: transparent; border: none; color: #666; cursor: pointer; font-size: 11px; text-decoration: underline;"> Cancelar Simulación</button>
+        `;
+
+        const botones = menuHTML.querySelectorAll('button');
+        botones.forEach(b => {
+            b.onmouseenter = () => b.style.transform = 'scale(1.03)';
+            b.onmouseleave = () => b.style.transform = 'scale(1)';
+        });
+
+        document.getElementById('btn-sim-severe').onclick = () => disparar("Severe");
+        document.getElementById('btn-sim-moderate').onclick = () => disparar("Moderate");
+        document.getElementById('btn-abortar-sim').onclick = () => menuHTML.remove();
+
+        function disparar(intensidadTipo) {
+            const avisoStr = (intensidadTipo === "Severe") ? "Alerta Crítica" : "Sismo Detectado";
+
+            const datosSimulados = {
+                aviso: avisoStr,
+                intensidad: intensidadTipo, 
+                zona: zonaIdentificada, 
+                sensor: sensorMasCercano.nombre,
+                lat: sensorMasCercano.lat,     
+                lon: sensorMasCercano.lon,
+                fecha: new Date().toLocaleString('es-MX'),
+                esSimulacion: true
+            };
+
+            menuHTML.remove();
+            ejecutarNuevaAlerta(datosSimulados, true);
+        }
+    });
+}
+
+function mostrarConteoSimulacroNacional() {
+        const contenedor = document.getElementById('simulacro-nacional-container');
+        if (!contenedor) return;
+        contenedor.style.display = 'block';
+
+        if (intervaloSimulacroNacional) clearInterval(intervaloSimulacroNacional);
+
+        const fechaObjetivo = new Date('2026-09-19T12:00:00-06:00').getTime();
+
+        intervaloSimulacroNacional = setInterval(() => {
+            const ahora = Date.now();
+            const diferencia = fechaObjetivo - ahora;
+            const relojEl = document.getElementById('simulacro-nacional-reloj');
+
+            if (!relojEl) return;
+
+            if (diferencia <= 0) {
+                relojEl.textContent = "¡SIMULACRO EN DESARROLLO!";
+                return;
+            }
+
+            const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
+            const horas = Math.floor((diferencia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
+            const segundos = Math.floor((diferencia % (1000 * 60)) / 1000);
+
+            relojEl.textContent = `${dias}d ${String(horas).padStart(2, '0')}h ${String(minutos).padStart(2, '0')}m ${String(segundos).padStart(2, '0')}s`;
+        }, 1000);
+}
+
+function ocultarConteoSimulacroNacional() {
+        const contenedor = document.getElementById('simulacro-nacional-container');
+        if (contenedor) contenedor.style.display = 'none';
+        if (intervaloSimulacroNacional) {
+            clearInterval(intervaloSimulacroNacional);
+            intervaloSimulacroNacional = null;
+        }
+}
+
+function mostrarRecomendacionesProteccionCivil() {
+    if (document.getElementById('modal-proteccion-civil')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-proteccion-civil';
+    Object.assign(modal.style, {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(5px)',
+        zIndex: '99999',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    });
+
+    modal.innerHTML = `
+        <div style="background: #0f1928; border: 2px solid #ffcc00; border-radius: 12px; padding: 25px; width: 90%; max-width: 450px; color: #fff; box-shadow: 0 0 25px rgba(255, 204, 0, 0.3); position: relative;">
+            <button onclick="cerrarRecomendacionesPC()" style="position: absolute; top: 12px; right: 15px; background: transparent; border: none; color: #ffcc00; font-size: 18px; font-weight: bold; cursor: pointer;">&times;</button>
+            
+            <h3 style="margin: 0 0 15px 0; color: #ffcc00; font-size: 16px; text-align: center; letter-spacing: 1px; text-transform: uppercase;">
+                <i class="fas fa-shield-alt"></i> Protocolo de Protección Civil
+            </h3>
+            
+            <div style="font-size: 13px; line-height: 1.6; color: #ddd; text-align: left;">
+                <p style="margin: 0 0 10px 0;">🛡️ <b>Antes del simulacro:</b> Identifica las zonas de menor riesgo, rutas de evacuación y salidas de emergencia.</p>
+                <p style="margin: 0 0 10px 0;">🛑 <b>Durante el evento:</b> Conserva la calma. <b>No corro, no empujo, no grito</b> y dirígete a la zona de seguridad establecida.</p>
+                <p style="margin: 0 0 10px 0;">⚡ <b>Acciones clave:</b> Si estás en una zona segura asignada, aléjate de ventanas, repisas, vidrios o postes y cables de luz.</p>
+                <p style="margin: 0;">✅ <b>Después del sismo:</b> Revisa si hay daños en tu inmueble, no enciendas cerillos o velas hasta descartar fuga de gas, y sigue las indicaciones de las autoridades.</p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="cerrarRecomendacionesPC()" style="background: #ffcc00; color: #0f1928; border: none; padding: 8px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px;">ENTENDIDO</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+function cerrarRecomendacionesPC() {
+    const modal = document.getElementById('modal-proteccion-civil');
+    if (modal) modal.remove();
 }
 
 function reinstalarCapasOndas() {
@@ -1763,143 +1900,6 @@ function actualizarCirculosCiudades(latEpi, lonEpi, intensidadGeneral) {
             mapUltimo.getSource('ciudades-difusion').setData({ 'type': 'FeatureCollection', 'features': [] });
         }
     }, 400000);
-}
-
-function lanzarPruebaSasepa() {
-    const menuViejo = document.getElementById('sasepa-sim-menu');
-    if (menuViejo) menuViejo.remove();
-
-    const menuHTML = document.createElement('div');
-    menuHTML.id = 'sasepa-sim-menu';
-    menuHTML.style.position = 'absolute';
-    menuHTML.style.top = '20px';
-    menuHTML.style.left = '50%';
-    menuHTML.style.transform = 'translateX(-50%)';
-    menuHTML.style.zIndex = '99999';
-    menuHTML.style.backgroundColor = 'rgba(15, 15, 20, 0.95)';
-    menuHTML.style.backdropFilter = 'blur(10px)';
-    menuHTML.style.border = '1px solid rgba(255, 255, 255, 0.1)';
-    menuHTML.style.borderRadius = '12px';
-    menuHTML.style.padding = '16px 24px';
-    menuHTML.style.fontFamily = "'Segoe UI', Roboto, sans-serif";
-    menuHTML.style.color = '#ffffff';
-    menuHTML.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.7)';
-    menuHTML.style.textAlign = 'center';
-    menuHTML.style.minWidth = '320px';
-
-    menuHTML.innerHTML = `
-        <h4 style="margin: 0 0 8px 0; font-size: 16px; color: #00bcff; text-transform: uppercase; letter-spacing: 1px;">Simulación SASEPA</h4>
-        <p id="sim-instruccion" style="margin: 0; font-size: 13px; color: #cccccc;">📡 Selecciona un <b>sensor</b> activo en el mapa para usarlo como origen.</p>
-        <button id="btn-cancelar-sim" style="margin-top: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px;">Cancelar</button>
-    `;
-
-    document.body.appendChild(menuHTML);
-    mapUltimo.getCanvas().style.cursor = 'crosshair';
-
-    document.getElementById('btn-cancelar-sim').onclick = () => {
-        mapUltimo.getCanvas().style.cursor = '';
-        menuHTML.remove();
-    };
-    
-    mapUltimo.once('click', (e) => {
-        const { lng, lat } = e.lngLat;
-
-        if (!window.MIS_SENSORES || window.MIS_SENSORES.length === 0) {
-            console.error("No se encontró el array de sensores.");
-            mapUltimo.getCanvas().style.cursor = '';
-            menuHTML.remove();
-            return;
-        }
-
-        let sensorMasCercano = null;
-        let distanciaMinima = Infinity;
-
-        window.MIS_SENSORES.forEach(sensor => {
-            const R = 6371; 
-            const dLat = (sensor.lat - lat) * Math.PI / 180;
-            const dLon = (sensor.lon - lng) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat * Math.PI / 180) * Math.cos(sensor.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const distancia = R * c; 
-
-            if (distancia < distanciaMinima) {
-                distanciaMinima = distancia;
-                sensorMasCercano = sensor;
-            }
-        });
-
-        const kmTolerancia = 15;
-        if (distanciaMinima > kmTolerancia) {
-            mapUltimo.getCanvas().style.cursor = '';
-            const instruccion = document.getElementById('sim-instruccion');
-            if (instruccion) {
-                instruccion.innerHTML = `⚠️ <span style="color: #ff3333;">ERROR: Debes seleccionar un sensor.</span><br>Por favor, selecciona un sensor o cancela la simulación.`;
-            }
-            setTimeout(() => { lanzarPruebaSasepa(); }, 1500);
-            return;
-        }
-
-        mapUltimo.getCanvas().style.cursor = '';
-
-        const obtenerZonaDinamica = (nombreEstacion) => {
-            if (!nombreEstacion) return "Zona de Cobertura Interna";
-            const nombreUpper = nombreEstacion.toUpperCase();
-            if (nombreUpper.includes("JL") || nombreUpper.includes("JALISCO")) return "Costa de Jalisco";
-            if (nombreUpper.includes("CL") || nombreUpper.includes("COLIMA")) return "Costa de Colima";
-            if (nombreUpper.includes("MC") || nombreUpper.includes("MICHOACÁN") || nombreUpper.includes("MICHOACAN")) return "Costa/Zona de Michoacán";
-            if (nombreUpper.includes("GR") || nombreUpper.includes("GUERRERO")) return "Costa/Zona de Guerrero";
-            if (nombreUpper.includes("PB") || nombreUpper.includes("PUEBLA")) return "Puebla";
-            if (nombreUpper.includes("OX") || nombreUpper.includes("OAXACA")) return "Costa/Zona de Oaxaca";
-            return "Zona de Cobertura Interna"; 
-        };
-
-        const zonaIdentificada = obtenerZonaDinamica(sensorMasCercano.nombre);
-
-        menuHTML.innerHTML = `
-            <h4 style="margin: 0 0 6px 0; font-size: 14px; color: #00bcff; text-transform: uppercase; letter-spacing: 1px;">Estación Detectada</h4>
-            <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px; margin-bottom: 14px; border: 1px solid rgba(255,255,255,0.05); font-size: 12px; text-align: left;">
-                <div style="margin-bottom: 4px;"><span style="color: #888;">Sensor:</span> <b style="color: #fff;">${sensorMasCercano.nombre}</b></div>
-                <div style="margin-bottom: 4px;"><span style="color: #888;">Región:</span> <span style="color: #fff;">${zonaIdentificada}</span></div>
-                <div><span style="color: #888;">Coord:</span> <span style="color: #00ffaa;">${sensorMasCercano.lat.toFixed(4)}, ${sensorMasCercano.lon.toFixed(4)}</span></div>
-            </div>
-            
-            <p style="margin: 0 0 8px 0; font-size: 11px; color: #aaa; text-align: left; font-weight: bold;">Selecciona Intensidad de Origen:</p>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; justify-content: center;">
-                <button id="btn-sim-severe" style="background: #ff2244; border: none; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(255,34,68,0.3);">🔴 SEVERE (Fuerte)</button>
-                <button id="btn-sim-moderate" style="background: #3de66f; border: none; color: #333; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(255,255,0,0.2);">🟡 MODERATE (Ligero/Mod)</button>
-            </div>
-            <button id="btn-abortar-sim" style="margin-top: 16px; background: transparent; border: none; color: #666; cursor: pointer; font-size: 11px; text-decoration: underline;"> Cancelar Simulación</button>
-        `;
-
-        const botones = menuHTML.querySelectorAll('button');
-        botones.forEach(b => {
-            b.onmouseenter = () => b.style.transform = 'scale(1.03)';
-            b.onmouseleave = () => b.style.transform = 'scale(1)';
-        });
-
-        document.getElementById('btn-sim-severe').onclick = () => disparar("Severe");
-        document.getElementById('btn-sim-moderate').onclick = () => disparar("Moderate");
-        document.getElementById('btn-abortar-sim').onclick = () => menuHTML.remove();
-
-        function disparar(intensidadTipo) {
-            const avisoStr = (intensidadTipo === "Severe") ? "Alerta Crítica" : "Sismo Detectado";
-
-            const datosSimulados = {
-                aviso: avisoStr,
-                intensidad: intensidadTipo, 
-                zona: zonaIdentificada, 
-                sensor: sensorMasCercano.nombre,
-                lat: sensorMasCercano.lat,      
-                lon: sensorMasCercano.lon,
-                fecha: new Date().toLocaleString('es-MX'),
-                esSimulacion: true
-            };
-
-            menuHTML.remove();
-            ejecutarNuevaAlerta(datosSimulados, true);
-        }
-    });
 }
 
 function toggleUI() {
