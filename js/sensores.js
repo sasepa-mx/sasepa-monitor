@@ -136,16 +136,4 @@ window.MIS_SENSORES = [
     { id: "CH18", lat: 15.478748987509944, lon: -92.33580879049823, nombre: "CH18 Nodata" },
     { id: "CH19", lat: 15.055146203384421, lon: -92.20610784810424, nombre: "CH19 Nodata" },
     { id: "CH20", lat: 16.819478485260074, lon: -93.12902911859845, nombre: "CH20 Tuxtla Gutiérrez"},
-
-// CENTRALES
-    { id: "CEMX", lat: 19.2826, lon: -99.6557, nombre: "RBSEMX " },
-    { id: "CMX", lat: 19.4326, lon: -99.1332, nombre: "RBSMX" },
-    { id: "CPB", lat: 19.0414, lon: -98.2063, nombre: "RBSPB" },
-    { id: "CMR", lat: 18.9261, lon: -99.2307, nombre: "RBSMR" },
-    { id: "CMC", lat: 19.7006, lon: -101.1864, nombre: "RBSMC" },
-    { id: "COX", lat: 17.0732, lon: -96.7266, nombre: "RBSOX" },
-    { id: "CGR2", lat: 17.5513, lon: -99.5005, nombre: "RBSGR2" },
-    { id: "CGR1", lat: 16.8531, lon: -99.8237, nombre: "RBSGR1" },
-    { id: "CCL", lat: 19.2433, lon: -103.7247, nombre: "RBSCL" },
-    { id: "CGDL", lat: 20.693943167251366, lon: -103.41964154370082, nombre: "RBSGDL" },
 ];
