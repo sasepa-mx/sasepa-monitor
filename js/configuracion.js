@@ -9,6 +9,7 @@ var CONFIG_AUDIOS = {
 };
 let desfaseServidorMs = 0;
 let sismosSSNActivosEnMapa = false;
+let ultimoSismoSSNRegistrado = null;
 let popupSSNActual = null;
 window.memoriaLat = 0;
 window.memoriaLon = 0;
@@ -502,7 +503,7 @@ function iniciarEscuchaSismos() {
     clienteMQTT.on('connect', () => {
         clienteMQTT.subscribe('sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g', { qos: 0 }, (err) => {
             if (!err) {
-                console.log("📡 Conectado y suscrito a alertas MQTT (Modo Retain activo).");
+                console.log("📡 Conectado y suscrito a SASEPAv1.0.1.");
             }
         });
         clienteMQTT.subscribe('sasepa/comandos/frontend', { qos: 0 });
@@ -2232,7 +2233,7 @@ function togglePuntosHistorial() {
     }
 }
 
-function monitoreoServicio() {
+async function monitoreoServicio() {
     setInterval(async () => {
         const latEl = document.getElementById('latencia-valor');
         if (latEl) {
@@ -2243,8 +2244,8 @@ function monitoreoServicio() {
             }
             const tiempoInicio = performance.now();
             try {
-                await fetch("https://sasepa-mapa-default-rtdb.firebaseio.com/.json?shallow=true", { 
-                    method: "HEAD", 
+                await fetch("https://sasepa-mapa-default-rtdb.firebaseio.com/estadisticas/.json?shallow=true", { 
+                    method: "GET", 
                     cache: "no-store" 
                 });
                 const tiempoFin = performance.now();
@@ -3043,10 +3044,9 @@ function calcularMercalliYColor(mag, profundidad) {
     return tablaMercalli[val] || tablaMercalli[5];
 }
 
-async function consultarUltimosSismosSSN() {
+async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
     const tickerEl = document.getElementById('ticker-text');
-
-    if (typeof sismosSSNActivosEnMapa !== 'undefined' && sismosSSNActivosEnMapa) {
+    if (typeof sismosSSNActivosEnMapa !== 'undefined' && sismosSSNActivosEnMapa && !esVerificacionAutomatica) {
         sismosSSNActivosEnMapa = false;
         if (typeof popupSSNActual !== 'undefined' && popupSSNActual) { popupSSNActual.remove(); popupSSNActual = null; }
         if (typeof mapUltimo !== 'undefined' && mapUltimo) {
@@ -3060,46 +3060,44 @@ async function consultarUltimosSismosSSN() {
         }
         return;
     }
-
-    if (tickerEl) tickerEl.innerHTML = `<span style="color: #00d4ff; font-weight: bold;">[SSN] Sincronizando sismos desde la web del SSN...</span>`;
-
+    if (tickerEl && !esVerificacionAutomatica) {
+        tickerEl.innerHTML = `<span style="color: #00d4ff; font-weight: bold;">[SSN] Sincronizando sismos del día desde la web del SSN...</span>`;
+    }
     try {
         const ssnUrl = 'http://www.ssn.unam.mx/sismicidad/ultimos/';
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ssnUrl)}`;
-
         const res = await fetch(proxyUrl);
         if (!res.ok) throw new Error("Error al conectar con la página del SSN");
-
         const htmlText = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, "text/html");
-        
         const filas = doc.querySelectorAll("table.table-condensed tr");
         if (!filas || filas.length <= 1) throw new Error("No se encontraron registros en la tabla");
-
         let geojsonFeatures = [];
-
+        const hoy = new Date();
+        const anioActual = hoy.getFullYear();
+        const mesActual = String(hoy.getMonth() + 1).padStart(2, '0');
+        const diaActual = String(hoy.getDate()).padStart(2, '0');
         filas.forEach((fila) => {
             const celdas = fila.querySelectorAll("td");
             if (celdas.length >= 4) {
                 const magText = celdas[0]?.textContent.trim() || "";
                 const mag = parseFloat(magText);
                 if (isNaN(mag)) return;
-
                 const fechaHoraText = celdas[1]?.textContent.trim() || "";
+                if (!fechaHoraText.includes(`${anioActual}-${mesActual}-${diaActual}`)) {
+                    return; 
+                }
                 const epicentroCelda = celdas[2];
                 const localizacion = epicentroCelda?.querySelector("b")?.textContent.trim() || epicentroCelda?.textContent.trim() || "México";
                 const textoCompletoTerceraCelda = epicentroCelda?.textContent || "";
                 const coordsMatch = textoCompletoTerceraCelda.match(/(-?[\d.]+)°\s*,\s*(-?[\d.]+)°/);
-                
                 const profText = celdas[3]?.textContent.trim() || "10 km";
                 const profMatch = profText.match(/([\d.]+)/);
                 const prof = profMatch ? parseFloat(profMatch[1]) : 10;
-
                 if (coordsMatch) {
                     const lat = parseFloat(coordsMatch[1]);
                     const lon = parseFloat(coordsMatch[2]);
-
                     if (!isNaN(lat) && !isNaN(lon)) {
                         const mercalliInfo = typeof calcularMercalliYColor === 'function' 
                             ? calcularMercalliYColor(mag, prof) 
@@ -3123,10 +3121,26 @@ async function consultarUltimosSismosSSN() {
                 }
             }
         });
-
+        if (geojsonFeatures.length > 0) {
+            const sismoMasReciente = geojsonFeatures[0];
+            const identificadorActual = `${sismoMasReciente.properties.fecha}-${sismoMasReciente.properties.magnitud}-${sismoMasReciente.properties.localizacion}`;
+            if (esVerificacionAutomatica && ultimoSismoSSNRegistrado !== null && ultimoSismoSSNRegistrado !== identificadorActual) {
+                if (typeof sonidoActivado === 'undefined' || sonidoActivado) {
+                    const audioSSN = document.getElementById('sonidoreportessn');
+                    if (audioSSN) {
+                        audioSSN.currentTime = 0;
+                        audioSSN.play().catch(err => console.warn("Audio SSN bloqueado por el navegador:", err));
+                    }
+                }
+                if (tickerEl) {
+                    tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.2); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-exclamation-circle"></i> [SSN] ¡NUEVO SISMO DE HOY DETECTADO! M${sismoMasReciente.properties.magnitud} - ${sismoMasReciente.properties.localizacion}</div>`;
+                    setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
+                }
+            }
+            ultimoSismoSSNRegistrado = identificadorActual;
+        }
         if (geojsonFeatures.length > 0 && typeof mapUltimo !== 'undefined' && mapUltimo) {
             sismosSSNActivosEnMapa = true;
-            
             if (mapUltimo.getSource('sismos-ssn-source')) {
                 mapUltimo.getSource('sismos-ssn-source').setData({ type: 'FeatureCollection', features: geojsonFeatures });
             } else {
@@ -3140,7 +3154,7 @@ async function consultarUltimosSismosSSN() {
                     const htmlChingon = `
                         <div style="padding: 0; margin: -10px; border-radius: 10px; overflow: hidden; background: #0b1120; border: 1px solid #38bdf8; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
                             <div style="background: linear-gradient(90deg, #0284c7, #0f172a); padding: 8px 12px; color: white; font-weight: bold; text-transform: uppercase; font-size: 10px; letter-spacing: 1px;">
-                                <i class="fas fa-wave-square"></i> REPORTE OFICIAL SSN
+                                <i class="fas fa-wave-square"></i> REPORTE OFICIAL SSN (HOY)
                             </div>
                             <div style="padding: 12px;">
                                 <div style="display: flex; align-items: center; margin-bottom: 8px;">
@@ -3160,26 +3174,30 @@ async function consultarUltimosSismosSSN() {
                     popupSSNActual = new mapboxgl.Popup({ className: 'popup-ssn-custom' }).setLngLat(e.lngLat).setHTML(htmlChingon).addTo(mapUltimo);
                 });
             }
-            if (tickerEl) tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.1); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-satellite-dish"></i> [SSN] ${geojsonFeatures.length} SISMOS CARGADOS DESDE LA WEB</div>`;
+            if (tickerEl && !esVerificacionAutomatica) {
+                tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.1); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-satellite-dish"></i> [SSN] ${geojsonFeatures.length} SISMOS </div>`;
+                setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
+            }
         } else {
-            if (tickerEl) tickerEl.innerHTML = `<span style="color: #ff3333;">No se pudieron extraer registros.</span>`;
+            if (tickerEl && !esVerificacionAutomatica) {
+                tickerEl.innerHTML = `<span style="color: #ffcc00;">Error. Vuelve a intentar en el botón de abajo.</span>`;
+                setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
+            }
         }
     } catch (e) {
         console.error("Error SSN:", e);
-        if (tickerEl) tickerEl.innerHTML = `<span style="color: #ff3333;">Error al parsear el sitio del SSN.</span>`;
+        if (tickerEl && !esVerificacionAutomatica) {
+            tickerEl.innerHTML = `<span style="color: #ff3333;">Error. Vuelve a intentar en el botón de abajo.</span>`;
+            setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
+        }
     }
 }
 
 function iniciarProgramadorSSN() {
-    consultarUltimosSismosSSN();
+    consultarUltimosSismosSSN(false);
     setInterval(() => {
-        const ahora = new Date();
-        const h = ahora.getHours();
-        const m = ahora.getMinutes();
-        if ((h === 8 || h === 20) && m === 0) {
-            consultarUltimosSismosSSN();
-        }
-    }, 60000);
+        consultarUltimosSismosSSN(true);
+    }, 600000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
