@@ -489,7 +489,7 @@ function iniciarEscuchaSismos() {
         protocol: 'wss',
         host: hostSeguro,
         port: 8884,
-        path: '/mqtt',                                            
+        path: '/mqtt',                                                         
         clientId: 'SASEPA_Publico_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
@@ -940,14 +940,23 @@ function iniciarEscuchaSismos() {
                 }
                 return; 
             }
+
             if (topic === 'sasepa/monitor/alertas/adminv7/0398cvhhs77ehh6365g') {
                 if (!d || !d.fecha) return;
-                const tiempoEvento = new Date(d.fecha).getTime();
-                if (!isNaN(tiempoEvento) && (Date.now() - tiempoEvento > 600000)) {
+                
+                const identificadorEntrante = d.identificador || `${d.fecha}|${d.zona}`;
+                const alertaAtendidaGuardada = localStorage.getItem('atendida');
+                if (alertaAtendidaGuardada === identificadorEntrante || ultimaAlertaId === identificadorEntrante) {
+                    return;
+                }
+                
+                const timestampInicio = d.timestamp_inicio || new Date(d.fecha).getTime();
+                const tiempoTranscurridoMs = Date.now() - timestampInicio;
+                
+                if (!isNaN(timestampInicio) && (tiempoTranscurridoMs > 600000)) {
                     return;
                 }
 
-                localStorage.removeItem('atendida');
                 bloqueoPorAlerta = false;
 
                 const datosNormalizados = {
@@ -956,11 +965,15 @@ function iniciarEscuchaSismos() {
                     intensidad: d.intensidad || "Evento Menor",
                     zona: d.zona || "Zona indeterminada",
                     fecha: d.fecha || new Date().toISOString(),
+                    timestamp_inicio: timestampInicio,
                     esSimulacion: !!d.esSimulacion,
                     sensor: d.sensor || "SASMEX",
-                    identificador: d.identificador || `${d.fecha}|${d.zona}`
+                    identificador: identificadorEntrante
                 };
-
+                localStorage.setItem('sasepa_sismo_activo_persistente', JSON.stringify({
+                    datos: datosNormalizados,
+                    timestampRecepcion: Date.now()
+                }));
                 if (d.sensor && window.MIS_SENSORES) {
                     const idSismo = d.sensor.trim().toUpperCase();
                     if (idSismo !== "SASMEX") {
@@ -968,7 +981,6 @@ function iniciarEscuchaSismos() {
                         if (sensorOrigen && sensorOrigen.activo === false) return;
                     }
                 }
-
                 if (window.MIS_SENSORES && mapUltimo) {
                     window.MIS_SENSORES.forEach((s, index) => {
                         const activoCheck = s.activo !== false && s.activo !== "false";
@@ -979,24 +991,20 @@ function iniciarEscuchaSismos() {
                         }
                     });
                 }
-
                 if (window.MIS_SENSORES) {
-    window.MIS_SENSORES.forEach((sensor) => {
-        const estadoGuardado = localStorage.getItem(`sasepa_sensor_${sensor.id}`);
-        if (estadoGuardado === "false" || estadoGuardado === false) {
-            sensor.activo = false;
-        }
-    });
-}
-
+                    window.MIS_SENSORES.forEach((sensor) => {
+                        const estadoGuardado = localStorage.getItem(`sasepa_sensor_${sensor.id}`);
+                        if (estadoGuardado === "false" || estadoGuardado === false) {
+                            sensor.activo = false;
+                        }
+                    });
+                }
                 const id = datosNormalizados.identificador;
                 ultimaAlertaId = id;
                 lastSyncTime = Date.now();
-
                 registrarLogSensor(d.sensor || "#TenemosSismo", `Región: ${d.zona} | Intensidad: ${d.intensidad}`, "alerta");
                 try { agregarAlHistorial(datosNormalizados); } catch (err) {}
-                
-                ejecutarNuevaAlerta(datosNormalNormalized || datosNormalizados, true);
+                ejecutarNuevaAlerta(datosNormalizados, true);
             }
         } catch (error) {
             console.error("Error al procesar MQTT:", error);
@@ -1073,7 +1081,6 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
         if (sensorEncontrado && sensorEncontrado.lat && sensorEncontrado.lon) {
             sismoLat = parseFloat(sensorEncontrado.lat);
             sismoLon = parseFloat(sensorEncontrado.lon);
-            console.log(`Coordenadas ajustadas al sensor local "${sensorEncontrado.nombre || sensorEncontrado.id}":`, sismoLat, sismoLon);
         }
     }
 
@@ -1403,10 +1410,22 @@ function ejecutarNuevaAlerta(d, permitirAcciones = false) {
     if (typeof actualizarCirculosCiudades === 'function') {
         actualizarCirculosCiudades(sismoLat, sismoLon, window.tipoOrigenActual);
     }
+
+    const estadoGuardable = {
+    datos: d,
+    timestampRecepcion: Date.now()
+};
+localStorage.setItem('sasepa_sismo_en_curso', JSON.stringify(estadoGuardable));
     
     if (window.timeoutCierre) clearTimeout(window.timeoutCierre);
     if (window.timeoutCierreSismoDos) clearTimeout(window.timeoutCierreSismoDos);
-    window.timeoutCierre = setTimeout(() => { detenerAlerta(); window.intervaloETA = null; window.segundosRestantesETA = null; window.sismoMenorEnProgreso = false; }, 500000);
+    window.timeoutCierre = setTimeout(() => { 
+        detenerAlerta(); 
+        window.intervaloETA = null; 
+        window.segundosRestantesETA = null; 
+        window.sismoMenorEnProgreso = false; 
+        localStorage.removeItem('sasepa_sismo_activo_persistente');
+    }, 500000);
     window.timeoutCierreSismoDos = setTimeout(() => { resetearSensores(); window.sismoMenorEnProgreso = false; }, 500000);
 }
 
@@ -1414,7 +1433,7 @@ function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion 
     const mapaActual = mapaParam || mapUltimo;
     if (!mapaActual) return;
 
-    let colorOndaSActualPersistente = colorS || 'rgba(82, 226, 113, 0.63)';
+    let colorOndaSActualPersistente = colorS || 'rgba(30, 188, 236, 0.9)';
     let desfaseSegs = parseFloat(desfase);
     if (isNaN(desfaseSegs) || desfaseSegs > 200 || desfaseSegs < 0) {
         desfaseSegs = 0; 
@@ -1604,6 +1623,79 @@ function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion 
             console.error("Error en intervalo global multi-ondas:", error);
         }
     }, 100);
+}
+
+function detenerAlerta() {
+    const banner = document.getElementById('alert-container');
+    const bannerBg = document.getElementById('banner-bg');
+    if (window.timeoutCierre) clearTimeout(window.timeoutCierre);
+    if (window.intervaloETA) clearInterval(window.intervaloETA);
+
+    if (banner) banner.style.display = 'none';
+    
+    if (bannerBg) {
+        bannerBg.classList.remove('fuerte-glow', 'moderado-glow');
+    }
+
+    [document.getElementById('sonidoEvento'), document.getElementById('sonidoEventoFuerte')].forEach(s => {
+        if(s) {
+            s.pause();
+            s.currentTime = 0;
+            s.loop = false;
+        }
+    });
+
+    if (ultimaAlertaId) {
+        localStorage.setItem('atendida', ultimaAlertaId);
+    }
+
+    const panicOverlay = document.getElementById('panic-overlay');
+    if (panicOverlay) panicOverlay.remove();
+
+    localStorage.removeItem('sasepa_sismo_en_curso');
+    localStorage.removeItem('atendida');
+}
+
+function verificarSismoPendienteAlCargar() {
+    const guardadoStr = localStorage.getItem('sasepa_sismo_activo_persistente') || localStorage.getItem('sasepa_sismo_en_curso');
+    if (!guardadoStr) return;
+
+    try {
+        const item = JSON.parse(guardadoStr);
+        const transcurridoSegs = (Date.now() - item.timestampRecepcion) / 1000;
+        if (transcurridoSegs < 600) {
+            setTimeout(() => {
+                ejecutarNuevaAlerta(item.datos, false);
+            }, 600);
+        } else {
+            localStorage.removeItem('sasepa_sismo_activo_persistente');
+            localStorage.removeItem('sasepa_sismo_en_curso');
+        }
+    } catch (e) {
+        localStorage.removeItem('sasepa_sismo_activo_persistente');
+        localStorage.removeItem('sasepa_sismo_en_curso');
+    }
+}
+
+function verificarEstadosSistemaAlCargar() {
+    if (localStorage.getItem('sasepa_simulacro_activo') === 'true') {
+        console.log("🔄 Restaurando cuenta regresiva del simulacro...");
+        mostrarConteoSimulacroNacional();
+    }
+    const ciudadesFuerteStr = localStorage.getItem('sasepa_ciudades_fuerte_persistente');
+    if (ciudadesFuerteStr) {
+        try {
+            const item = JSON.parse(ciudadesFuerteStr);
+            const transcurrido = (Date.now() - item.timestampRecepcion) / 1000;
+            if (transcurrido < 600) {
+                console.log("🔄 Restaurando estado de ciudades en alerta fuerte...");
+            } else {
+                localStorage.removeItem('sasepa_ciudades_fuerte_persistente');
+            }
+        } catch (e) {
+            localStorage.removeItem('sasepa_ciudades_fuerte_persistente');
+        }
+    }
 }
 
 function lanzarPruebaSasepa() {
@@ -3200,6 +3292,24 @@ function iniciarProgramadorSSN() {
     }, 600000);
 }
 
+function desbloquearAudioGlobal() {
+    const audios = document.querySelectorAll('audio');
+    audios.forEach(audio => {
+        audio.play().then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+        }).catch(e => {});
+    });
+    window.sonidoActivado = true;
+    if (typeof sonidoActivado !== 'undefined') sonidoActivado = true;
+    localStorage.setItem('sasepa_audio_desbloqueado', 'true');
+    const btn = document.getElementById('btn-desbloquear-audio');
+    if (btn) {
+        btn.style.display = 'none';
+    }
+    console.log("🔊 Audio desbloqueado por el usuario.");
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     if(typeof generarRepetidorasSasmex === 'function') window.REPETIDORAS_SASMEX = generarRepetidorasSasmex();
     if(typeof solicitarPermisoNotificaciones === 'function') solicitarPermisoNotificaciones();
@@ -3212,12 +3322,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const app = document.getElementById('app-content');
     if (loginEl) loginEl.style.display = 'none';
     if (app) app.style.display = 'block';
+
+    if (localStorage.getItem('sasepa_audio_desbloqueado') === 'true') {
+        const btn = document.getElementById('btn-desbloquear-audio');
+        if (btn) btn.style.display = 'none';
+    }
     
     const s = document.createElement('script');
     s.src = "js/sensores.js?v=" + Date.now();
     s.onload = () => {
         if(typeof verificarTerminos === 'function') verificarTerminos();
         if(typeof mostrarConteoSimulacroNacional === 'function') mostrarConteoSimulacroNacional(); 
+        verificarSismoPendienteAlCargar();
     };
     document.head.appendChild(s);
 });
