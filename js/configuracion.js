@@ -1680,7 +1680,7 @@ function verificarSismoPendienteAlCargar() {
 function verificarEstadosSistemaAlCargar() {
     if (localStorage.getItem('sasepa_simulacro_activo') === 'true') {
         console.log("🔄 Restaurando cuenta regresiva del simulacro...");
-        mostrarConteoSimulacroNacional();
+        ocultarConteoSimulacroNacional();
     }
     const ciudadesFuerteStr = localStorage.getItem('sasepa_ciudades_fuerte_persistente');
     if (ciudadesFuerteStr) {
@@ -3332,7 +3332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     s.src = "js/sensores.js?v=" + Date.now();
     s.onload = () => {
         if(typeof verificarTerminos === 'function') verificarTerminos();
-        if(typeof mostrarConteoSimulacroNacional === 'function') mostrarConteoSimulacroNacional(); 
+        if(typeof ocultarConteoSimulacroNacional === 'function') ocultarConteoSimulacroNacional(); 
         verificarSismoPendienteAlCargar();
     };
     document.head.appendChild(s);
