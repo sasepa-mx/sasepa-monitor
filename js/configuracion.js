@@ -2458,6 +2458,7 @@ async function mostrarAppMonitor() {
 
     inicializarMapa(); 
     iniciarEscuchaSismos();
+    ocultarConteoSimulacroNacional();
     
     setTimeout(() => { 
         if(mapUltimo) mapUltimo.resize(); 
