@@ -115,6 +115,16 @@ window.MIS_SENSORES = [
     { id: "OX38", lat: 17.624800455619784, lon: -98.35852401738461, nombre: "Tlachichilco" },
     { id: "OX39", lat: 18.18483883444087, lon: -97.01436479044372, nombre: "Vigastepec" },
 
+// VERACRUZ
+    { id: "VR01", lat: 18.784576687865652, lon: -96.8326123915182, nombre: "Orizaba" },
+    { id: "VR02", lat: 18.60006465443583, lon: -96.79932762638487, nombre: "Mixtla" },
+    { id: "VR03", lat: 18.112567662446338, lon: -95.7022138947622, nombre: "Isla" },
+    { id: "VR04", lat: 17.82510196715941, lon: -95.79864495631824, nombre: "Playa Vicente" },
+    { id: "VR05", lat: 17.7687388216633, lon: -95.22409221443095, nombre: "Bellaco" },
+    { id: "VR06", lat: 17.637637302943908, lon: -95.14792448326295, nombre: "Tres Portillos" },
+    { id: "VR07", lat: 17.36711103463403, lon: -94.9503940002632, nombre: "Suchilapan" },
+    { id: "VR08", lat: 17.198329058676496, lon: -94.19722933958047, nombre: "Horqueta" },
+
 // CHIAPAS
     { id: "CH01", lat: 16.167051890818335, lon: -94.09361166644837, nombre: "La Gloria" },
     { id: "CH02", lat: 15.877564436723787, lon: -93.63097582258092, nombre: "Cayetano" },
