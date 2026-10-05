@@ -127,8 +127,6 @@ const ciudadesSasmexBase = [
     { id: 114, idTicker: "RCGR1-1", nombre: "RAcapulco1", lat: 16.8731, lon: -99.8737, esRepetidora: true },
     { id: 8, idTicker: "CCL", nombre: "Colima", lat: 19.2433, lon: -103.7247 },
     { id: 116, idTicker: "RCCL1", nombre: "RColima1", lat: 19.2633, lon: -103.7747, esRepetidora: true },
-    { id: 9, idTicker: "CGDL", nombre: "Guadalajara", lat: 20.66682, lon: -103.39182 },
-    { id: 116, idTicker: "RCGDL1", nombre: "RGuadalajara1", lat: 20.6736, lon: -103.3440, esRepetidora: true },
     { id: 10, idTicker: "CCH", nombre: "Chiapas", lat: 16.75693, lon: -93.12924 },
     { id: 117, idTicker: "RCCH1", nombre: "RChiapas1", lat: 16.7350, lon: -93.1000, esRepetidora: true }
 ];
@@ -493,8 +491,8 @@ function iniciarEscuchaSismos() {
         clientId: 'SASEPA_Publico_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
-        username: 'sasepa',
-        password: '!QnVitpZBAjJx7k',
+        username: 'mpx.sasepa.net',
+        password: 'mpx.sasepa.netpublic',
         rejectUnauthorized: false                                     
     };
     
@@ -520,7 +518,7 @@ function iniciarEscuchaSismos() {
                 } else if (d.accion === "reset_total") {
                     resetTotalMapa();
                     ocultarConteoSimulacroNacional();
-                    mostrarStatusServidorv7();
+                    mostrarStatusServidorv8();
                     
                     if (window.MIS_SENSORES && mapUltimo) {
                         const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
@@ -564,7 +562,8 @@ function iniciarEscuchaSismos() {
                 } else if (d.accion === "reporte_todos_sensores") {
                     audioReporte.currentTime = 0;
                     audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
-                    reporteInicialSensores();          
+                    reporteInicialSensores();  
+                    mostrarStatusServidorv8();   
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const activoCheck = sensor.activo !== false && sensor.activo !== "false";
