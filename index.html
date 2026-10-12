@@ -114,6 +114,11 @@
     🔊 ACTIVAR ALERTAS DE AUDIO
 </button>
 
+<div id="widget-clima">
+    <div id="temp-clima">--°C</div>
+    <div id="desc-clima">Cargando...</div>
+</div>
+
         <div class="contenedor-controles-manuales">
 
             <button class="btn-icono" onclick="lanzarPruebaSasepa()" title="Probar Sonido">
@@ -153,10 +158,6 @@
                 <i class="fas fa-sync-alt"></i> 
             </button>
 
-            <button class="btn-icono" onclick="CapturarPantalla()" title="Capturar Pantalla">
-                <i class="fas fa-expand"></i>
-            </button>
-
             <button class="btn-icono" onclick="cambiarUbicacionManual()" title="Ajustar Ubicación">
                 <i class="fas fa-map-marker-alt"></i>
             </button>
@@ -168,7 +169,32 @@
             <button class="btn-icono" id="btn-historial-mapa" onclick="togglePuntosHistorial()" title="Últimos Eventos">
                 <i class="fas fa-braille"></i>
             </button>
-
+    <button id="btnToggleLayers" class="sasepa-btn-control" onclick="toggleSasepaPanel(event)" title="Capas del Mapa">
+        <i class="fas fa-layer-group"></i> <span>Capas</span>
+    </button>
+    <a href="https://t.me/SASEPAMx" target="_blank" id="btnTelegram" class="sasepa-btn-control sasepa-btn-telegram" title="Telegram Oficial">
+        <i class="fab fa-telegram-plane"></i> <span>Telegram</span>
+    </a>
+    <div id="sasepaLayerPanel" class="sasepa-panel hidden" onclick="event.stopPropagation()">
+        <div class="sasepa-panel-header">
+            <h4>Control de Capas</h4>
+            <button onclick="cerrarSasepaPanel()" class="sasepa-close-btn">&times;</button>
+        </div>
+        <div class="sasepa-panel-body">
+            <label class="sasepa-toggle-item">
+                <input type="checkbox" id="toggleSSN" checked onchange="cambiarCapaMapbox('ssn', this.checked)">
+                <span>Últimos sismos del SSN</span>
+            </label>
+            <label class="sasepa-toggle-item">
+                <input type="checkbox" id="togglePlacas" onchange="cambiarCapaMapbox('placas', this.checked)">
+                <span>Placas tectónicas</span>
+            </label>
+            <label class="sasepa-toggle-item">
+                <input type="checkbox" id="toggleSensores" checked onchange="cambiarCapaMapbox('sensores', this.checked)">
+                <span>Sensores SASMEX / Estaciones</span>
+            </label>
+        </div>
+    </div>
             <div class="map-style-selector">
                 <button onclick="cambiarEstiloMapa('mapbox://styles/mapbox/satellite-streets-v12')" title="Capa Satelital">
                     <i class="fas fa-satellite"></i>

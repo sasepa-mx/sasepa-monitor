@@ -1,7 +1,9 @@
 // ©️ SASEPAMx Derechos Reservados Prohibida su copia total o parcial sin autorización expresa
 var database = null; 
 let intervaloSimulacroNacional = null;
+let ultimoTimestampProcesadoFirebase = 0;
 var listaHistorial = [];
+let intervaloClimaGlobal = null;
 var CONFIG_AUDIOS = {
     alertas: true,   
     intensidades: true, 
@@ -127,6 +129,8 @@ const ciudadesSasmexBase = [
     { id: 114, idTicker: "RCGR1-1", nombre: "RAcapulco1", lat: 16.8731, lon: -99.8737, esRepetidora: true },
     { id: 8, idTicker: "CCL", nombre: "Colima", lat: 19.2433, lon: -103.7247 },
     { id: 116, idTicker: "RCCL1", nombre: "RColima1", lat: 19.2633, lon: -103.7747, esRepetidora: true },
+    { id: 9, idTicker: "CGDL", nombre: "Guadalajara", lat: 20.66682, lon: -103.39182 },
+    { id: 116, idTicker: "RCGDL1", nombre: "RGuadalajara1", lat: 20.6736, lon: -103.3440, esRepetidora: true },
     { id: 10, idTicker: "CCH", nombre: "Chiapas", lat: 16.75693, lon: -93.12924 },
     { id: 117, idTicker: "RCCH1", nombre: "RChiapas1", lat: 16.7350, lon: -93.1000, esRepetidora: true }
 ];
@@ -491,8 +495,8 @@ function iniciarEscuchaSismos() {
         clientId: 'SASEPA_Publico_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
-        username: 'mpx.sasepa.net',
-        password: 'mpx.sasepa.netpublic',
+        username: 'monitor.sasepa.net',
+        password: 'monitorpublico',
         rejectUnauthorized: false                                     
     };
     
@@ -562,8 +566,8 @@ function iniciarEscuchaSismos() {
                 } else if (d.accion === "reporte_todos_sensores") {
                     audioReporte.currentTime = 0;
                     audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
-                    reporteInicialSensores();  
-                    mostrarStatusServidorv8();   
+                    reporteInicialSensores();
+                    mostrarStatusServidorv8();          
                     if (window.MIS_SENSORES && mapUltimo) {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const activoCheck = sensor.activo !== false && sensor.activo !== "false";
@@ -2458,10 +2462,206 @@ async function mostrarAppMonitor() {
     inicializarMapa(); 
     iniciarEscuchaSismos();
     ocultarConteoSimulacroNacional();
+    inicializarClimaSASEPA();
     
     setTimeout(() => { 
         if(mapUltimo) mapUltimo.resize(); 
     }, 1000);
+}
+
+function inicializarClimaSASEPA() {
+    let lat = parseFloat(localStorage.getItem('sasepa_lat'));
+    let lon = parseFloat(localStorage.getItem('sasepa_lon'));
+    const latDefault = 19.42847;
+    const lonDefault = -99.12766;
+    if (!isNaN(lat) && !isNaN(lon)) {
+        cargarDatosClima(lat, lon);
+    } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const userLat = position.coords.latitude;
+                const userLon = position.coords.longitude;
+                cargarDatosClima(userLat, userLon);
+                localStorage.setItem('sasepa_lat', userLat);
+                localStorage.setItem('sasepa_lon', userLon);
+            },
+            (error) => {
+                console.warn("Geolocalización denegada o no disponible. Usando ubicación por defecto (CDMX):", error);
+                cargarDatosClima(latDefault, lonDefault);
+            },
+            { timeout: 10000, enableHighAccuracy: false }
+        );
+    } else {
+        cargarDatosClima(latDefault, lonDefault);
+    }
+    setInterval(() => {
+        let currentLat = parseFloat(localStorage.getItem('sasepa_lat')) || latDefault;
+        let currentLon = parseFloat(localStorage.getItem('sasepa_lon')) || lonDefault;
+        cargarDatosClima(currentLat, currentLon);
+    }, 1200000);
+}
+
+async function cargarDatosClima(lat, lon) {
+    const urlClima = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+    try {
+        const respuesta = await fetch(urlClima);
+        const datos = await respuesta.json();
+        if (datos && datos.current) {
+            const temperatura = Math.round(datos.current.temperature_2m);
+            const codigoClima = datos.current.weather_code;
+            const textoClima = traducirCodigoClima(codigoClima);
+            const tempEl = document.getElementById('temp-clima');
+            const descEl = document.getElementById('desc-clima');
+            if (tempEl) tempEl.textContent = `${temperatura}°C`;
+            if (descEl) descEl.textContent = textoClima;
+        }
+    } catch (error) {
+        console.error("Error al obtener los datos del clima:", error);
+    }
+}
+
+function traducirCodigoClima(code) {
+    const mapaClima = {
+        0: "Despejado",
+        1: "Mayormente despejado",
+        2: "Parcialmente nublado",
+        3: "Nublado",
+        45: "Neblina",
+        48: "Neblina con escarcha",
+        51: "Llovizna ligera",
+        53: "Llovizna",
+        55: "Llovizna densa",
+        61: "Lluvia ligera",
+        63: "Lluvia moderada",
+        65: "Lluvia fuerte",
+        80: "Chubascos",
+        95: "Tormenta eléctrica"
+    };
+    return mapaClima[code] !== undefined ? mapaClima[code] : "Estable";
+}
+
+function actualizarClimaInstantaneo(lat, lon) {
+    if (!isNaN(lat) && !isNaN(lon)) {
+        localStorage.setItem('sasepa_lat', lat);
+        localStorage.setItem('sasepa_lon', lon);
+        cargarDatosClima(lat, lon); 
+    }
+}
+
+function mostrarUbicacionUsuario() {
+    if (!mapUltimo) return;
+    navigator.geolocation.getCurrentPosition(pos => {
+        userCoords = [pos.coords.longitude, pos.coords.latitude];
+        if (window.userMarkerUltimo) window.userMarkerUltimo.remove();
+        const el = document.createElement('div');
+        el.className = 'mapboxgl-user-location-dot';
+        el.style.backgroundImage = "url('img/ubicacion.png')";
+        el.style.backgroundSize = "cover";
+        el.style.width = "40px";   
+        el.style.height = "40px";  
+        window.userMarkerUltimo = new mapboxgl.Marker(el).setLngLat(userCoords).addTo(mapUltimo);
+        actualizarClimaInstantaneo(pos.coords.latitude, pos.coords.longitude);
+    }, () => {
+        establecerUbicacionDefault();
+    }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
+}
+
+function establecerUbicacionDefault() {
+    if (!mapUltimo) return;
+    userCoords = [-99.1332, 19.4326]; 
+    if (window.userMarkerUltimo) window.userMarkerUltimo.remove();
+    const el = document.createElement('div');
+    el.className = 'mapboxgl-user-location-dot';
+    el.style.backgroundImage = "url('img/ubicacion.png')";
+    el.style.backgroundSize = "cover";
+    el.style.width = "40px";   
+    el.style.height = "40px";  
+    window.userMarkerUltimo = new mapboxgl.Marker(el).setLngLat(userCoords).addTo(mapUltimo);
+    actualizarClimaInstantaneo(19.4326, -99.1332);
+    const tickerEl = document.getElementById('ticker-text');
+    if (tickerEl) {
+        tickerEl.innerHTML = "<span style='color: #ffcc00;'>UBICACIÓN PREDETERMINADA: CIUDAD DE MÉXICO</span>";
+        if (window.timerTicker) clearTimeout(window.timerTicker);
+        window.timerTicker = setTimeout(() => { tickerEl.innerHTML = ""; }, 5000);
+    }
+}
+
+function cambiarUbicacionManual() {
+    if (!mapUltimo || bloqueoPorAlerta) return;
+    const msg = ">>\nIngrese destino de monitoreo (Ciudad, Estado):";
+    try {
+        let ciudad = prompt(msg);
+        if (ciudad !== undefined && ciudad !== null) {
+            if (ciudad.trim() !== "") continuarGeocodingSasepa(ciudad);
+            return;
+        }
+    } catch(e) {}
+    if (!document.getElementById('sasepa-prompt-container')) {
+        let contenedor = document.createElement('div');
+        contenedor.id = 'sasepa-prompt-container';
+        contenedor.style = "position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:#0c0c0c;border:2px solid #00ffff;padding:25px;z-index:99999;font-family:monospace;color:#fff;box-shadow:0 0 25px rgba(0,255,255,0.4);border-radius:4px;min-width:320px;box-sizing:border-box;";
+        contenedor.innerHTML = `
+            <p style="color:#ffff00;margin:0 0 12px 0;font-weight:bold;letter-spacing:1px;font-size:12px;">${msg.replace('\n','<br>')}</p>
+            <input type="text" id="prompt-exe-input" style="width:100%;background:#000;border:1px solid #00ffff;color:#fff;padding:8px;margin-bottom:15px;font-family:monospace;outline:none;box-sizing:border-box;" autofocus>
+            <div style="text-align:right;">
+                <button onclick="cerrarPromptExe()" style="background:#222;color:#aaa;border:1px solid #444;padding:6px 12px;margin-right:8px;cursor:pointer;font-family:monospace;font-size:11px;">CANCELAR</button>
+                <button onclick="procesarUbicacionExe()" style="background:#00ffff;color:#000;border:none;padding:6px 15px;font-weight:bold;cursor:pointer;font-family:monospace;font-size:11px;">ACEPTAR</button>
+            </div>
+        `;
+        const padre = document.querySelector('.contenedor-controles-manuales') || document.body;
+        padre.appendChild(contenedor);
+        const input = document.getElementById('prompt-exe-input');
+        input.focus();
+        input.onkeydown = (e) => { 
+            if (e.key === 'Enter') procesarUbicacionExe(); 
+            if (e.key === 'Escape') cerrarPromptExe();
+        };
+    }
+}
+
+function procesarUbicacionExe() {
+    const input = document.getElementById('prompt-exe-input');
+    if (input) {
+        const valor = input.value;
+        cerrarPromptExe();
+        if (valor && valor.trim() !== "") {
+            ejecutarGeocodingDirecto(valor);
+        }
+    }
+}
+
+function ejecutarGeocodingDirecto(query) {
+    if (!mapUltimo) return;
+    const token = mapboxgl.accessToken;
+    if (!token) return;
+
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=1&country=MX`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.features && data.features.length > 0) {
+                const coordinates = data.features[0].center; 
+                userCoords = coordinates;
+                
+                const lon = coordinates[0];
+                const lat = coordinates[1];
+
+                if (window.userMarkerUltimo) window.userMarkerUltimo.remove();
+                
+                const el = document.createElement('div');
+                el.className = 'mapboxgl-user-location-dot';
+                el.style.backgroundImage = "url('img/ubicacion.png')";
+                el.style.backgroundSize = "cover";
+                el.style.width = "40px";    
+                el.style.height = "40px";  
+                window.userMarkerUltimo = new mapboxgl.Marker(el)
+                    .setLngLat(userCoords)
+                    .addTo(mapUltimo);
+                actualizarClimaInstantaneo(lat, lon);
+            }
+        })
+        .catch(err => {});
 }
 
 function verificarTerminos() {
@@ -2809,124 +3009,9 @@ function cerrarHistorial() {
     if (mapUltimo) mapUltimo.resize();
 }
 
-function mostrarUbicacionUsuario() {
-    if (!mapUltimo) return;
-    navigator.geolocation.getCurrentPosition(pos => {
-        userCoords = [pos.coords.longitude, pos.coords.latitude];
-        if (window.userMarkerUltimo) window.userMarkerUltimo.remove();
-        
-        const el = document.createElement('div');
-        el.className = 'mapboxgl-user-location-dot';
-        el.style.backgroundImage = "url('img/ubicacion.png')";
-        el.style.backgroundSize = "cover";
-        el.style.width = "40px";   
-        el.style.height = "40px";  
-        
-        window.userMarkerUltimo = new mapboxgl.Marker(el).setLngLat(userCoords).addTo(mapUltimo);
-    }, () => {
-        establecerUbicacionDefault();
-    }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
-}
-
-function establecerUbicacionDefault() {
-    if (!mapUltimo) return;
-    userCoords = [-99.1332, 19.4326]; 
-    if (window.userMarkerUltimo) window.userMarkerUltimo.remove();
-    
-    const el = document.createElement('div');
-    el.className = 'mapboxgl-user-location-dot';
-    el.style.backgroundImage = "url('img/ubicacion.png')";
-    el.style.backgroundSize = "cover";
-    el.style.width = "40px";   
-    el.style.height = "40px";  
-    
-    window.userMarkerUltimo = new mapboxgl.Marker(el).setLngLat(userCoords).addTo(mapUltimo);
-
-    const tickerEl = document.getElementById('ticker-text');
-    if (tickerEl) {
-        tickerEl.innerHTML = "<span style='color: #ffcc00;'>UBICACIÓN PREDETERMINADA: CIUDAD DE MÉXICO</span>";
-        if (window.timerTicker) clearTimeout(window.timerTicker);
-        window.timerTicker = setTimeout(() => { tickerEl.innerHTML = ""; }, 5000);
-    }
-}
-
 function cerrarPromptExe() {
     const el = document.getElementById('sasepa-prompt-container');
     if (el) el.remove();
-}
-
-function procesarUbicacionExe() {
-    const input = document.getElementById('prompt-exe-input');
-    if (input) {
-        const valor = input.value;
-        cerrarPromptExe();
-        if (valor && valor.trim() !== "") {
-            ejecutarGeocodingDirecto(valor);
-        }
-    }
-}
-
-function ejecutarGeocodingDirecto(query) {
-    if (!mapUltimo) return;
-    const token = mapboxgl.accessToken;
-    if (!token) return;
-
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=1&country=MX`;
-
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.features && data.features.length > 0) {
-                const coordinates = data.features[0].center; 
-                userCoords = coordinates;
-                if (window.userMarkerUltimo) window.userMarkerUltimo.remove();
-                
-                const el = document.createElement('div');
-                el.className = 'mapboxgl-user-location-dot';
-                el.style.backgroundImage = "url('img/ubicacion.png')";
-                window.userMarkerUltimo = new mapboxgl.Marker(el)
-                    .setLngLat(userCoords)
-                    .addTo(mapUltimo);
-            }
-        })
-        .catch(err => {});
-}
-
-function cambiarUbicacionManual() {
-    if (!mapUltimo || bloqueoPorAlerta) return;
-
-    const msg = ">>\nIngrese destino de monitoreo (Ciudad, Estado):";
-    
-    try {
-        let ciudad = prompt(msg);
-        if (ciudad !== undefined && ciudad !== null) {
-            if (ciudad.trim() !== "") continuarGeocodingSasepa(ciudad);
-            return;
-        }
-    } catch(e) {}
-    
-    if (!document.getElementById('sasepa-prompt-container')) {
-        let contenedor = document.createElement('div');
-        contenedor.id = 'sasepa-prompt-container';
-        contenedor.style = "position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:#0c0c0c;border:2px solid #00ffff;padding:25px;z-index:99999;font-family:monospace;color:#fff;box-shadow:0 0 25px rgba(0,255,255,0.4);border-radius:4px;min-width:320px;box-sizing:border-box;";
-        contenedor.innerHTML = `
-            <p style="color:#ffff00;margin:0 0 12px 0;font-weight:bold;letter-spacing:1px;font-size:12px;">${msg.replace('\n','<br>')}</p>
-            <input type="text" id="prompt-exe-input" style="width:100%;background:#000;border:1px solid #00ffff;color:#fff;padding:8px;margin-bottom:15px;font-family:monospace;outline:none;box-sizing:border-box;" autofocus>
-            <div style="text-align:right;">
-                <button onclick="cerrarPromptExe()" style="background:#222;color:#aaa;border:1px solid #444;padding:6px 12px;margin-right:8px;cursor:pointer;font-family:monospace;font-size:11px;">CANCELAR</button>
-                <button onclick="procesarUbicacionExe()" style="background:#00ffff;color:#000;border:none;padding:6px 15px;font-weight:bold;cursor:pointer;font-family:monospace;font-size:11px;">ACEPTAR</button>
-            </div>
-        `;
-        const padre = document.querySelector('.contenedor-controles-manuales') || document.body;
-        padre.appendChild(contenedor);
-        
-        const input = document.getElementById('prompt-exe-input');
-        input.focus();
-        input.onkeydown = (e) => { 
-            if (e.key === 'Enter') procesarUbicacionExe(); 
-            if (e.key === 'Escape') cerrarPromptExe();
-        };
-    }
 }
 
 function generarSonidoSasepa(tipo) {
@@ -3049,6 +3134,64 @@ function mostrarStatusServidorv8() {
     }, 10000); 
 }
 
+function toggleSasepaPanel(event) {
+    if (event) event.stopPropagation();
+    const panel = document.getElementById('sasepaLayerPanel');
+    if (panel) {
+        panel.classList.toggle('hidden');
+    }
+}
+
+function cerrarSasepaPanel() {
+    const panel = document.getElementById('sasepaLayerPanel');
+    if (panel) {
+        panel.classList.add('hidden');
+    }
+}
+
+function cambiarCapaMapbox(tipo, activo) {
+    const visibility = activo ? 'visible' : 'none';
+    const mapLayers = {
+        'ssn': 'sismos-ssn-layer',   
+        'placas': 'placas-layer-id',       
+        'sensores': 'layer-sensores-alerta',
+        'ondas': 'layer-ondas'             
+    };
+    const layerId = mapLayers[tipo];
+    if (typeof mapUltimo !== 'undefined' && mapUltimo && layerId && mapUltimo.getLayer(layerId)) {
+        mapUltimo.setLayoutProperty(layerId, 'visibility', visibility);
+    } else {
+    }
+}
+
+function cargarPlacasTectonicas() {
+    if (!mapUltimo || !mapUltimo.isStyleLoaded()) return;
+    const urlPlacas = 'https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json';
+    if (!mapUltimo.getSource('placas-source')) {
+        mapUltimo.addSource('placas-source', {
+            type: 'geojson',
+            data: urlPlacas
+        });
+    }
+    if (!mapUltimo.getLayer('placas-layer-id')) {
+        mapUltimo.addLayer({
+            id: 'placas-layer-id',
+            type: 'line',
+            source: 'placas-source',
+            layout: {
+                'visibility': 'none',
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            paint: {
+                'line-color': '#ff7800',
+                'line-width': 1.5,
+                'line-opacity': 0.7
+            }
+        });
+    }
+}
+
 function togglePanelLogs() {
     const panel = document.getElementById('panel-lateral-logs');
     if (!panel) return;
@@ -3156,7 +3299,7 @@ async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
         tickerEl.innerHTML = `<span style="color: #00d4ff; font-weight: bold;">[SSN] Sincronizando sismos del día desde la web del SSN...</span>`;
     }
     try {
-        const ssnUrl = 'http://www.ssn.unam.mx/sismicidad/ultimos/';
+        const ssnUrl = 'https://www.ssn.unam.mx/sismicidad/ultimos/';
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ssnUrl)}`;
         const res = await fetch(proxyUrl);
         if (!res.ok) throw new Error("Error al conectar con la página del SSN");
@@ -3194,7 +3337,6 @@ async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
                         const mercalliInfo = typeof calcularMercalliYColor === 'function' 
                             ? calcularMercalliYColor(mag, prof) 
                             : { color: '#ffcc00', romano: 'IV', desc: "Moderado", efecto: 'Percibido' };
-
                         geojsonFeatures.push({
                             type: 'Feature',
                             geometry: { type: 'Point', coordinates: [lon, lat] },
@@ -3216,7 +3358,7 @@ async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
         if (geojsonFeatures.length > 0) {
             const sismoMasReciente = geojsonFeatures[0];
             const identificadorActual = `${sismoMasReciente.properties.fecha}-${sismoMasReciente.properties.magnitud}-${sismoMasReciente.properties.localizacion}`;
-            if (esVerificacionAutomatica && ultimoSismoSSNRegistrado !== null && ultimoSismoSSNRegistrado !== identificadorActual) {
+            if (esVerificacionAutomatica && typeof ultimoSismoSSNRegistrado !== 'undefined' && ultimoSismoSSNRegistrado !== null && ultimoSismoSSNRegistrado !== identificadorActual) {
                 if (typeof sonidoActivado === 'undefined' || sonidoActivado) {
                     const audioSSN = document.getElementById('sonidoreportessn');
                     if (audioSSN) {
@@ -3225,7 +3367,7 @@ async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
                     }
                 }
                 if (tickerEl) {
-                    tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.2); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-exclamation-circle"></i> [SSN] ¡NUEVO SISMO DE HOY DETECTADO! M${sismoMasReciente.properties.magnitud} - ${sismoMasReciente.properties.localizacion}</div>`;
+                    tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.2); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-exclamation-circle"></i> [SSN] ¡NUEVO SISMO DETECTADO! M${sismoMasReciente.properties.magnitud} ${sismoMasReciente.properties.localizacion}</div>`;
                     setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
                 }
             }
@@ -3239,7 +3381,6 @@ async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
                 mapUltimo.addSource('sismos-ssn-source', { type: 'geojson', data: { type: 'FeatureCollection', features: geojsonFeatures } });
                 mapUltimo.addLayer({ id: 'sismos-ssn-layer-glow', type: 'circle', source: 'sismos-ssn-source', paint: { 'circle-radius': 10, 'circle-color': ['get', 'color'], 'circle-opacity': 0.5, 'circle-blur': 0.5 } });
                 mapUltimo.addLayer({ id: 'sismos-ssn-layer', type: 'circle', source: 'sismos-ssn-source', paint: { 'circle-radius': 4.5, 'circle-color': ['get', 'color'], 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff' } });
-
                 mapUltimo.on('click', 'sismos-ssn-layer', (e) => {
                     const p = e.features[0].properties;
                     if (typeof popupSSNActual !== 'undefined' && popupSSNActual) popupSSNActual.remove();
@@ -3253,7 +3394,7 @@ async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
                                     <div style="font-size: 18px; color: #fbbf24; margin-right: 10px; font-weight: 800;">M ${p.magnitud}</div>
                                     <div>
                                         <div style="color: #94a3b8; font-size: 9px; text-transform: uppercase;">Intensidad Mercalli</div>
-                                        <div style="color: ${p.color}; font-weight: bold; font-size: 11px; text-shadow: 0px 0px 2px rgba(0,0,0,0.8);">${p.mercalliRomano} - ${p.mercalliDesc}</div>
+                                        <div style="color: ${p.color}; font-weight: bold; font-size: 11px; text-shadow: 0px 0px 2px rgba(0,0,0,0.8);">${p.mercalliRomano} ${p.mercalliDesc}</div>
                                     </div>
                                 </div>
                                 <div style="color: #f1f5f9; font-size: 11px; margin-bottom: 8px; line-height: 1.3;">${p.localizacion}</div>
@@ -3267,19 +3408,19 @@ async function consultarUltimosSismosSSN(esVerificacionAutomatica = false) {
                 });
             }
             if (tickerEl && !esVerificacionAutomatica) {
-                tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.1); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-satellite-dish"></i> [SSN] ${geojsonFeatures.length} SISMOS </div>`;
+                tickerEl.innerHTML = `<div style="background: rgba(0, 212, 255, 0.1); border-left: 4px solid #00d4ff; padding: 5px 10px; color: #00d4ff; font-weight: bold; font-family: monospace; border-radius: 4px;"><i class="fas fa-satellite-dish"></i> [SSN] ${geojsonFeatures.length} SISMOS CARGADOS</div>`;
                 setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
             }
         } else {
             if (tickerEl && !esVerificacionAutomatica) {
-                tickerEl.innerHTML = `<span style="color: #ffcc00;">Error. Vuelve a intentar en el botón de abajo.</span>`;
+                tickerEl.innerHTML = `<span style="color: #ffcc00;">No hay sismos registrados para el día de hoy o la tabla está vacía.</span>`;
                 setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
             }
         }
     } catch (e) {
         console.error("Error SSN:", e);
         if (tickerEl && !esVerificacionAutomatica) {
-            tickerEl.innerHTML = `<span style="color: #ff3333;">Error. Vuelve a intentar en el botón de abajo.</span>`;
+            tickerEl.innerHTML = `<span style="color: #ff3333;">Error al conectar con el SSN. Vuelve a intentar.</span>`;
             setTimeout(() => { if (tickerEl) tickerEl.innerHTML = ""; }, 10000);
         }
     }
@@ -3315,19 +3456,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if(typeof solicitarPermisoNotificaciones === 'function') solicitarPermisoNotificaciones();
     if(typeof iniciarReloj === 'function') iniciarReloj();
     if(typeof monitoreoServicio === 'function') monitoreoServicio();
-    
     iniciarProgramadorSSN();
-    
     const loginEl = document.getElementById('login-screen');
     const app = document.getElementById('app-content');
     if (loginEl) loginEl.style.display = 'none';
     if (app) app.style.display = 'block';
-
     if (localStorage.getItem('sasepa_audio_desbloqueado') === 'true') {
         const btn = document.getElementById('btn-desbloquear-audio');
         if (btn) btn.style.display = 'none';
     }
-    
     const s = document.createElement('script');
     s.src = "js/sensores.js?v=" + Date.now();
     s.onload = () => {
@@ -3336,4 +3473,12 @@ document.addEventListener('DOMContentLoaded', () => {
         verificarSismoPendienteAlCargar();
     };
     document.head.appendChild(s);
+});
+
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('sasepaLayerPanel');
+    const btn = document.getElementById('btnToggleLayers');
+    if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.classList.add('hidden');
+    }
 });

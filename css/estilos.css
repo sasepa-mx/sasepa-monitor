@@ -40,6 +40,51 @@ body, html {
     z-index: 1; 
 }
 
+#widget-clima {
+    position: fixed;
+    bottom: 90px; 
+    right: 20px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(8px);
+    border-right: 4px solid #00E4E8;
+    padding: 8px 12px;
+    border-radius: 6px;
+    z-index: 9999;
+    font-family: 'Courier New', monospace;
+    text-align: right;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    pointer-events: none;
+    transition: all 0.4s ease;
+}
+
+#temp-clima {
+    color: #00E4E8;
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 1px;
+}
+
+#desc-clima {
+    color: #ffffff;
+    font-size: 10px;
+    margin-top: 3px;
+    opacity: 0.9;
+    text-transform: uppercase;
+}
+
+@media (max-width: 1024px) {
+    #widget-clima {
+        bottom: auto;
+        top: 115px;
+        right: auto;
+        left: 15px;
+        border-right: none;
+        border-left: 4px solid #00E4E8;
+        text-align: left;
+    }
+}
+
 .top-bar { 
     position: absolute;
     top: 0;
@@ -137,6 +182,104 @@ body, html {
     display: none !important;
 }
 
+.sasepa-btn-control {
+    background: rgba(18, 18, 18, 0.85);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.sasepa-btn-control:hover {
+    background: rgba(30, 30, 30, 0.95);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.sasepa-btn-telegram {
+    background: #229ED9;
+    border-color: #229ED9;
+}
+
+.sasepa-btn-telegram:hover {
+    background: #1f8bc2;
+}
+
+.sasepa-panel {
+    position: absolute;
+    bottom: 110%;
+    right: 0;
+    width: 250px;
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    padding: 12px;
+    z-index: 1000;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sasepa-panel.hidden {
+    display: none;
+}
+
+.sasepa-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+.sasepa-panel-header h4 {
+    margin: 0;
+    font-size: 13px;
+    color: #e0e0e0;
+}
+
+.sasepa-close-btn {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.sasepa-close-btn:hover {
+    color: #fff;
+}
+
+.sasepa-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sasepa-toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #d0d0d0;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.sasepa-toggle-item input {
+    accent-color: #229ED9;
+    cursor: pointer;
+}
+
 #alert-container {
     position: absolute;
     top: 60px;
@@ -165,7 +308,6 @@ body, html {
     box-shadow: 0 10px 40px rgba(0,0,0,0.8);
 }
 
-/* 🎯 Ajustamos la fecha para que respete su espacio sin estorbar el título ni el botón de cerrar */
 #alert-fecha {
     font-size: 11px;
     font-weight: 700;
@@ -741,7 +883,7 @@ body, html {
 
 #btn-toggle-ui {
     position: fixed;
-    bottom: 95px; 
+    bottom: 140px; 
     right: 20px;
     z-index: 10000;
     width: 45px;
@@ -1118,7 +1260,7 @@ body, html {
         width: 240px;
         font-size: 10px;
         bottom: 15px;
-        left: 285px;
+        left: 270px;
     }
     
     #cuadro-ciudades {
@@ -1143,6 +1285,7 @@ body, html {
     #hora-cdmx { font-size: 21px; }
     #panel-historial { width: 320px; height: calc(100% - 150px); top: 70px; }
     .logos-sasepa-fondo img { height: 90px; }
+    .contenedor-controles-manuales { bottom: 5px; padding: 4px 8px; left: 60%; }
 }
 
 @media (max-width: 1024px) {
