@@ -3131,15 +3131,23 @@ function cerrarSasepaPanel() {
 function cambiarCapaMapbox(tipo, activo) {
     const visibility = activo ? 'visible' : 'none';
     const mapLayers = {
-        'ssn': 'sismos-ssn-layer',   
-        'placas': 'placas-layer-id',       
+        'ssn': 'sismos-ssn-layer',    
+        'placas': 'placas-layer-id',        
         'sensores': 'layer-sensores-alerta',
         'ondas': 'layer-ondas'             
     };
     const layerId = mapLayers[tipo];
-    if (typeof mapUltimo !== 'undefined' && mapUltimo && layerId && mapUltimo.getLayer(layerId)) {
-        mapUltimo.setLayoutProperty(layerId, 'visibility', visibility);
-    } else {
+    if (typeof mapUltimo !== 'undefined' && mapUltimo && layerId) {
+        if (mapUltimo.getLayer(layerId)) {
+            mapUltimo.setLayoutProperty(layerId, 'visibility', visibility);
+        } else if (tipo === 'placas' && activo) {
+            cargarPlacasTectonicas();
+            setTimeout(() => {
+                if (mapUltimo.getLayer(layerId)) {
+                    mapUltimo.setLayoutProperty(layerId, 'visibility', visibility);
+                }
+            }, 500);
+        }
     }
 }
 
