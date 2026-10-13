@@ -2463,6 +2463,7 @@ async function mostrarAppMonitor() {
     iniciarEscuchaSismos();
     ocultarConteoSimulacroNacional();
     inicializarClimaSASEPA();
+    cargarPlacasTectonicas();
     
     setTimeout(() => { 
         if(mapUltimo) mapUltimo.resize(); 
@@ -2725,75 +2726,53 @@ async function limpiarAudios() {
     });
 }
 
-async function resetTotalMapa() {
+function resetTotalMapa() {
     window.estaReseteando = true;
-    if (window.audioContext) {
-        await window.audioContext.suspend();
+    if (window.audioContext && window.audioContext.state !== 'closed') {
+        window.audioContext.suspend();
     }
-    const todosLosAudios = document.querySelectorAll('audio');
-    todosLosAudios.forEach(audio => {
+    document.querySelectorAll('audio').forEach(audio => {
         audio.pause();
         audio.currentTime = 0;
     });
-    const idMaximoIntervalo = window.setInterval(() => {}, 9999);
-    for (let i = 1; i <= idMaximoIntervalo; i++) {
-        window.clearInterval(i);
+    if (window.intervaloOndasGlobal) {
+        clearInterval(window.intervaloOndasGlobal);
+        window.intervaloOndasGlobal = null;
     }
-    const idMaximoTimeout = window.setTimeout(() => {}, 9999);
-    for (let i = 1; i <= idMaximoTimeout; i++) {
-        window.clearTimeout(i);
+    if (window.intervaloETA) {
+        clearInterval(window.intervaloETA);
+        window.intervaloETA = null;
     }
-    window.intervaloOndas = null;
-    window.intervaloOndasGlobal = null;
-    window.intervaloETA = null;
-    window.timerTicker = null;
-    window.timeoutCierre = null;
-    window.timeoutCierreSismoDos = null;
-    window.timeoutCiudades = null;
-    window.timeoutEpicentroLimpieza = null;
+    if (window.timerTicker) {
+        clearTimeout(window.timerTicker);
+        window.timerTicker = null;
+    }
+    if (window.timeoutCierre) {
+        clearTimeout(window.timeoutCierre);
+        window.timeoutCierre = null;
+    }
     window.sismosActivos = [];
-    window.idSismoActualActivo = null;
-    window.lastSismoLat = null;
-    window.lastSismoLon = null;
-    window.lastSismoZona = null;
-    window.segundosRestantesETA = null;
     const tickerEl = document.getElementById('ticker-text');
     if (tickerEl) {
         tickerEl.innerHTML = "";
         tickerEl.removeAttribute('data-actual-id');
     }
     const banner = document.getElementById('alert-container');
-    if (banner) banner.style.display = 'none'; 
+    if (banner) banner.style.display = 'none';
     const panicOverlay = document.getElementById('panic-overlay');
-    if (panicOverlay) panicOverlay.remove(); 
+    if (panicOverlay) panicOverlay.remove();
     const cuadroCiudades = document.getElementById('cuadro-ciudades');
-    if (cuadroCiudades) cuadroCiudades.style.display = 'none'; 
+    if (cuadroCiudades) cuadroCiudades.style.display = 'none';
     if (mapUltimo) {
-        const limpiarCapasMapa = () => {
-            ['ondas', 'lineas-sensores', 'epicentro', 'ciudades-telemetria', 'ciudades-difusion'].forEach(f => {
-                if (mapUltimo.getSource(f)) {
-                    mapUltimo.getSource(f).setData({ 'type': 'FeatureCollection', 'features': [] });
-                }
-            });
-
-            if (window.MIS_SENSORES && mapUltimo.getSource('sensores-alerta')) {
-                const featuresBase = window.MIS_SENSORES.map((s, index) => ({
-                    'type': 'Feature',
-                    'id': index, 
-                    'properties': { 'color': '#00ff00', 'nombre': s.nombre },
-                    'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
-                }));
-                mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresBase });
+        ['ondas', 'lineas-sensores', 'epicentro', 'ciudades-telemetria', 'ciudades-difusion'].forEach(f => {
+            if (mapUltimo.getSource(f)) {
+                mapUltimo.getSource(f).setData({ 'type': 'FeatureCollection', 'features': [] });
             }
-        };
-
-        limpiarCapasMapa();
-        setTimeout(limpiarCapasMapa, 100);
-        bloqueoPorAlerta = false; 
+        });
     }
     setTimeout(() => {
         window.estaReseteando = false;
-    }, 500);
+    }, 300);
 }
 
 async function resetearSensores() {
