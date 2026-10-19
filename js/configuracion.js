@@ -1458,7 +1458,7 @@ function dibujarOndas(lat, lon, mapaParam, colorS, desfase = 0, esActualizacion 
             }
         }
     } else {
-        const inicio = Date.now() - ((desfaseSegs + 7) * 1000);
+        const inicio = Date.now() - ((desfaseSegs + 20) * 1000);
         const idSismoUnico = `${lat}_${lon}_${Date.now()}`;
         let sensoresConEstado = MIS_SENSORES.filter(s => s.lat && s.lon).map((s, index) => {
             const idCorto = (s.id || "").trim().toUpperCase();
