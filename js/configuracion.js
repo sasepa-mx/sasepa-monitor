@@ -387,11 +387,17 @@ function inicializarMapa() {
         if (window.MIS_SENSORES) {
             const featuresBase = window.MIS_SENSORES.map((s, index) => {
                 const idCorto = (s.id || "").trim().toUpperCase();
-                const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
-                if (estadoGuardado === 'false') {
+                const nombreUpper = (s.nombre || "").trim().toUpperCase();
+                if (idCorto.includes("CH") || idCorto.includes("CHIAPAS") || nombreUpper.includes("CHIAPAS")) {
                     s.activo = false;
+                } else {
+                    const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
+                    if (estadoGuardado === 'false') {
+                        s.activo = false;
+                    }
                 }
-                const colorInicial = (s.activo === false) ? '#ff0000' : '#00ff00';
+
+                const colorInicial = (s.activo === false) ? '#a1a1a1' : '#00ff00'; 
                 return { 
                     'type': 'Feature', 
                     'id': index,
@@ -495,8 +501,8 @@ function iniciarEscuchaSismos() {
         clientId: 'SASEPA_Publico_' + Math.random().toString(16).substr(2, 8),
         clean: true,
         connectTimeout: 5000,
-        username: 'monitor.sasepa.net',
-        password: 'monitorpublico',
+        username: 'rss.sasepa.mx',
+        password: 'rss.sasepa.mx',
         rejectUnauthorized: false                                     
     };
     
@@ -532,7 +538,7 @@ function iniciarEscuchaSismos() {
                                 'id': index, 
                                 'properties': { 
                                     'nombre': s.nombre, 
-                                    'color': activoCheck ? '#00ff00' : '#ff0000' 
+                                    'color': activoCheck ? '#00ff00' : '#a1a1a1' 
                                 }, 
                                 'geometry': { 'type': 'Point', 'coordinates': [parseFloat(s.lon), parseFloat(s.lat)] }
                             };
@@ -546,7 +552,7 @@ function iniciarEscuchaSismos() {
                             const activoCheck = sensor.activo !== false && sensor.activo !== "false";
                             mapUltimo.setFeatureState(
                                 { source: 'sensores-alerta', id: index }, 
-                                { color: activoCheck ? null : '#ff0000', reportando: false }
+                                { color: activoCheck ? null : '#a1a1a1', reportando: false }
                             );
                         });
                     }
@@ -573,7 +579,7 @@ function iniciarEscuchaSismos() {
                             const activoCheck = sensor.activo !== false && sensor.activo !== "false";
                             mapUltimo.setFeatureState(
                                 { source: 'sensores-alerta', id: index }, 
-                                { color: activoCheck ? null : '#ff0000', reportando: false }
+                                { color: activoCheck ? null : '#a1a1a1', reportando: false }
                             );
                         });
                     }
@@ -823,7 +829,7 @@ function iniciarEscuchaSismos() {
                                 if (timerTickerGlobal) clearTimeout(timerTickerGlobal);
                                 if (d.activo === false) {
                                     registrarLogSensor(idBuscado, "FUERA DE SERVICIO", "desconectado");
-                                    tickerEl.innerHTML = `<span style="color: #ff0000; font-weight: bold; letter-spacing: 1px;">${idBuscado}: FUERA DE SERVICIO</span>`;
+                                    tickerEl.innerHTML = `<span style="color: #a1a1a1; font-weight: bold; letter-spacing: 1px;">${idBuscado}: FUERA DE SERVICIO</span>`;
                                 } else {
                                     registrarLogSensor(idBuscado, "EN SERVICIO.", "online");
                                     tickerEl.innerHTML = `<span style="color: #00ff00; font-weight: bold; letter-spacing: 1px;">${idBuscado}: EN SERVICIO</span>`;
@@ -833,7 +839,7 @@ function iniciarEscuchaSismos() {
                             if (mapUltimo && mapUltimo.getSource('sensores-alerta')) {
                                 const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
                                     const activoCheck = s.activo !== false && s.activo !== "false";
-                                    const colorInicial = activoCheck ? '#00ff00' : '#ff0000';
+                                    const colorInicial = activoCheck ? '#00ff00' : '#a1a1a1';
                                     return { 
                                         'type': 'Feature', 
                                         'id': index, 
@@ -844,7 +850,7 @@ function iniciarEscuchaSismos() {
                                 mapUltimo.getSource('sensores-alerta').setData({ 'type': 'FeatureCollection', 'features': featuresActualizadas });
                                 mapUltimo.setFeatureState(
                                     { source: 'sensores-alerta', id: idx }, 
-                                    { color: d.activo ? null : '#ff0000', reportando: false }
+                                    { color: d.activo ? null : '#a1a1a1', reportando: false }
                                 );
                             }
                         }
@@ -875,7 +881,7 @@ function iniciarEscuchaSismos() {
 
                         const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
                             const activoCheck = s.activo !== false && s.activo !== "false";
-                            const colorInic = activoCheck ? '#00ff00' : '#ff0000';
+                            const colorInic = activoCheck ? '#00ff00' : '#a1a1a1';
                             return {
                                 'type': 'Feature', 
                                 'id': index, 
@@ -892,7 +898,7 @@ function iniciarEscuchaSismos() {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const idSensorUpper = (sensor.id || "").trim().toUpperCase();
                             if (regionObjetivo === "TODOS" || idSensorUpper.includes(regionObjetivo)) {
-                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#ff0000', reportando: false });
+                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: '#a1a1a1', reportando: false });
                             }
                         });
                     }
@@ -915,7 +921,7 @@ function iniciarEscuchaSismos() {
 
                         const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
                             const activoCheck = s.activo !== false && s.activo !== "false";
-                            const colorInic = activoCheck ? '#00ff00' : '#ff0000';
+                            const colorInic = activoCheck ? '#00ff00' : '#a1a1a1';
                             return {
                                 'type': 'Feature', 
                                 'id': index, 

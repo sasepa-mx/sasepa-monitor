@@ -637,6 +637,14 @@ body, html {
 .c-fuerte   { background: #ff0000; box-shadow: 0 0 5px #ff0000; }
 .c-amarillo { background: #fffb00; box-shadow: 0 0 5px #fffb00; }
 .c-verde    { background: #47ff5f; box-shadow: 0 0 5px #47ff5f; }
+.sensor-service { 
+    width: 8px; 
+    height: 8px; 
+    border-radius: 50%; 
+    margin-right: 6px; 
+}
+.offline   { background: #a1a1a1; box-shadow: 0 0 5px #a1a1a1; }
+.online    { background: #47ff5f; box-shadow: 0 0 5px #47ff5f; }
 
 .onda-p-simb { 
     width: 11px; 
@@ -1187,7 +1195,7 @@ body, html {
 .log-conexion { color: #4f7df0; }  
 .log-online { color: #00e676; }   
 .log-alerta { color: #b3acac; font-weight: bold; } 
-.log-desconectado { color: #ff0000; } 
+.log-desconectado { color: #a1a1a1; } 
 
 #apartado-reporte-sensores {
     background: #111318;
@@ -1235,7 +1243,7 @@ body, html {
 }
 
 #reporte-online { color: #00e676; }
-#reporte-offline { color: #ff3d00; }
+#reporte-offline { color: #a1a1a1; }
 #reporte-pings { color: #00d4ff; }
 
 @media (max-width: 1366px) {
