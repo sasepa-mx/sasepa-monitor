@@ -385,10 +385,10 @@ function inicializarMapa() {
             });
         }
         if (window.MIS_SENSORES) {
+            const sensoresChiapasOffline = ["CH08", "CH09", "CH10", "CH11", "CH12", "CH13"];
             const featuresBase = window.MIS_SENSORES.map((s, index) => {
                 const idCorto = (s.id || "").trim().toUpperCase();
-                const nombreUpper = (s.nombre || "").trim().toUpperCase();
-                if (idCorto.includes("CH") || idCorto.includes("CHIAPAS") || nombreUpper.includes("CHIAPAS")) {
+                if (sensoresChiapasOffline.includes(idCorto)) {
                     s.activo = false;
                 } else {
                     const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idCorto}`);
@@ -515,13 +515,23 @@ function iniciarEscuchaSismos() {
             }
         });
         clienteMQTT.subscribe('sasepa/comandos/frontend', { qos: 0 });
+        clienteMQTT.subscribe('sasepa/estado/sistema/+', { qos: 1 });
+        clienteMQTT.subscribe('sasepa/estado/sensores/+', { qos: 1 });
     });
 
-    clienteMQTT.on('message', (topic, message) => {
+    clienteMQTT.on('message', (topic, message, packet) => {
         try {
-            const d = JSON.parse(message.toString());
+            const rawMsg = message.toString();
+            if (!rawMsg) return;
+
+            const d = JSON.parse(rawMsg);
+            const esMensajeRetenido = packet && packet.retain === true;
             
-            if (topic === 'sasepa/comandos/frontend') {
+            if (
+                topic === 'sasepa/comandos/frontend' ||
+                topic.startsWith('sasepa/estado/sistema/') ||
+                topic.startsWith('sasepa/estado/sensores/')
+            ) {
                 if (d.accion === "reporte_general") {
                     registrarLogSensor("SMAEPA", "Reporte difusión ciudades.", "conexion");
                     reporteMasivoCiudades(d.tiempo_limpieza || 10000);
@@ -824,18 +834,26 @@ function iniciarEscuchaSismos() {
                         if (idx !== -1) {
                             window.MIS_SENSORES[idx].activo = d.activo;
                             localStorage.setItem(`sasepa_sensor_${idBuscado}`, d.activo);
-                            const tickerEl = document.getElementById('ticker-text');
-                            if (tickerEl) {
-                                if (timerTickerGlobal) clearTimeout(timerTickerGlobal);
-                                if (d.activo === false) {
-                                    registrarLogSensor(idBuscado, "FUERA DE SERVICIO", "desconectado");
-                                    tickerEl.innerHTML = `<span style="color: #a1a1a1; font-weight: bold; letter-spacing: 1px;">${idBuscado}: FUERA DE SERVICIO</span>`;
-                                } else {
-                                    registrarLogSensor(idBuscado, "EN SERVICIO.", "online");
-                                    tickerEl.innerHTML = `<span style="color: #00ff00; font-weight: bold; letter-spacing: 1px;">${idBuscado}: EN SERVICIO</span>`;
-                                }
-                                timerTickerGlobal = setTimeout(() => { tickerEl.innerHTML = ""; }, 10000);
+
+                            if (d.activo === false) {
+                                registrarLogSensor(idBuscado, "FUERA DE SERVICIO", "desconectado");
+                            } else {
+                                registrarLogSensor(idBuscado, "EN SERVICIO.", "online");
                             }
+
+                            if (!esMensajeRetenido) {
+                                const tickerEl = document.getElementById('ticker-text');
+                                if (tickerEl) {
+                                    if (timerTickerGlobal) clearTimeout(timerTickerGlobal);
+                                    if (d.activo === false) {
+                                        tickerEl.innerHTML = `<span style="color: #a1a1a1; font-weight: bold; letter-spacing: 1px;">${idBuscado}: FUERA DE SERVICIO</span>`;
+                                    } else {
+                                        tickerEl.innerHTML = `<span style="color: #00ff00; font-weight: bold; letter-spacing: 1px;">${idBuscado}: EN SERVICIO</span>`;
+                                    }
+                                    timerTickerGlobal = setTimeout(() => { tickerEl.innerHTML = ""; }, 10000);
+                                }
+                            }
+
                             if (mapUltimo && mapUltimo.getSource('sensores-alerta')) {
                                 const featuresActualizadas = window.MIS_SENSORES.map((s, index) => {
                                     const activoCheck = s.activo !== false && s.activo !== "false";
@@ -863,7 +881,7 @@ function iniciarEscuchaSismos() {
                         if (tickerEl) tickerEl.innerHTML = '<span style="color: red; font-weight: bold; letter-spacing: 2px;">SYSTEM OFFLINE</span>';
                         registrarLogSensor("sasepa.net.v8", "El servidor remoto reporta desconexión global.", "desconectado");
                     } else {
-                        if (tickerEl) {
+                        if (tickerEl && !esMensajeRetenido) {
                             tickerEl.innerHTML = `<span style="color: red; font-weight: bold; letter-spacing: 2px;">OFFLINE: REGIÓN ${regionObjetivo}</span>`;
                             setTimeout(() => { tickerEl.innerHTML = ""; }, 10000);
                         }
@@ -905,6 +923,7 @@ function iniciarEscuchaSismos() {
                 } else if (d.accion === "sistema_online") {
                     const regionObjetivo = d.region ? d.region.trim().toUpperCase() : "TODOS";
                     const tickerEl = document.getElementById('ticker-text');
+                    const sensoresChiapasOffline = ["CH07", "CH08", "CH09", "CH10", "CH11", "CH12", "CH13"];
                     
                     if (tickerEl) tickerEl.innerHTML = "";
                     if (timerTickerGlobal) clearTimeout(timerTickerGlobal);
@@ -914,8 +933,9 @@ function iniciarEscuchaSismos() {
                         window.MIS_SENSORES.forEach((sensor) => {
                             const idSensorUpper = (sensor.id || "").trim().toUpperCase();
                             if (regionObjetivo === "TODOS" || idSensorUpper.includes(regionObjetivo)) {
-                                sensor.activo = true; 
-                                localStorage.setItem(`sasepa_sensor_${sensor.id}`, true);
+                                const esChiapasOffline = sensoresChiapasOffline.includes(idSensorUpper);
+                                sensor.activo = !esChiapasOffline; 
+                                localStorage.setItem(`sasepa_sensor_${sensor.id}`, sensor.activo);
                             }
                         });
 
@@ -938,14 +958,18 @@ function iniciarEscuchaSismos() {
                         window.MIS_SENSORES.forEach((sensor, index) => {
                             const idSensorUpper = (sensor.id || "").trim().toUpperCase();
                             if (regionObjetivo === "TODOS" || idSensorUpper.includes(regionObjetivo)) {
-                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: null, reportando: false });
+                                const activoCheck = sensor.activo !== false && sensor.activo !== "false";
+                                mapUltimo.setFeatureState({ source: 'sensores-alerta', id: index }, { color: activoCheck ? null : '#a1a1a1', reportando: false });
                             }
                         });
                     }
-                    audioReporte.currentTime = 0;
-                    audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
-                    reporteInicialSensores();
-                    mostrarStatusServidorv7();
+
+                    if (!esMensajeRetenido) {
+                        audioReporte.currentTime = 0;
+                        audioReporte.play().catch(err => console.warn("Audio bloqueado por el navegador:", err));
+                        reporteInicialSensores();
+                        if (typeof mostrarStatusServidorv8 === 'function') mostrarStatusServidorv8();
+                    }
                 }
                 return; 
             }

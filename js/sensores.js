@@ -1,12 +1,6 @@
 // ©️ SASEPAMx Derechos Reservados Prohibida su copia total o parcial sin autorización expresa
 window.MIS_SENSORES = [
 // JALISCO
-    { id: "JL12", lat: 19.25624, lon: -104.57481, nombre: "Cihuatlán" },
-    { id: "JL11", lat: 20.55616, lon: -105.25205, nombre: "Playa Palmares" },
-    { id: "JL10", lat: 20.3641, lon: -105.27143, nombre: "Provincia" },
-    { id: "JL09", lat: 19.32885, lon: -104.53929, nombre: "El Carrizal" },
-    { id: "JL08", lat: 19.62414, lon: -105.13438, nombre: "Pérula" },
-    { id: "JL07", lat: 19.95209, lon: -105.23984, nombre: "Tomatlán" },
     { id: "JL06", lat: 20.307463530701327, lon: -105.4685783421527, nombre: "Llano Grande" },
     { id: "JL05", lat: 20.047313380545695, lon: -105.43599665691791, nombre: "El Portezuelo" },
     { id: "JL04", lat: 19.96545925445177, lon: -105.32509196399073, nombre: "La Pintada" },
