@@ -990,6 +990,31 @@ function iniciarEscuchaSismos() {
                     return;
                 }
 
+                if (window.MIS_SENSORES) {
+                    window.MIS_SENSORES.forEach((sensor) => {
+                        const idClean = (sensor.id || "").trim().toUpperCase();
+                        const estadoGuardado = localStorage.getItem(`sasepa_sensor_${idClean}`);
+                        if (estadoGuardado === "false") {
+                            sensor.activo = false;
+                        } else if (estadoGuardado === "true") {
+                            sensor.activo = true;
+                        }
+                    });
+                }
+
+                if (d.sensor && window.MIS_SENSORES) {
+                    const idSismo = d.sensor.trim().toUpperCase();
+                    if (idSismo !== "SASMEX") {
+                        const sensorOrigen = window.MIS_SENSORES.find(
+                            s => (s.id || "").trim().toUpperCase() === idSismo || (s.nombre || "").trim().toUpperCase() === idSismo
+                        );
+                        if (sensorOrigen && sensorOrigen.activo === false) {
+                            console.warn(`🚫 Sismo ignorado: el sensor ${idSismo} está apagado (fuera de servicio).`);
+                            return;
+                        }
+                    }
+                }
+
                 bloqueoPorAlerta = false;
 
                 const datosNormalizados = {
@@ -1007,13 +1032,7 @@ function iniciarEscuchaSismos() {
                     datos: datosNormalizados,
                     timestampRecepcion: Date.now()
                 }));
-                if (d.sensor && window.MIS_SENSORES) {
-                    const idSismo = d.sensor.trim().toUpperCase();
-                    if (idSismo !== "SASMEX") {
-                        const sensorOrigen = window.MIS_SENSORES.find(s => s.id === idSismo);
-                        if (sensorOrigen && sensorOrigen.activo === false) return;
-                    }
-                }
+
                 if (window.MIS_SENSORES && mapUltimo) {
                     window.MIS_SENSORES.forEach((s, index) => {
                         const activoCheck = s.activo !== false && s.activo !== "false";
@@ -1024,14 +1043,7 @@ function iniciarEscuchaSismos() {
                         }
                     });
                 }
-                if (window.MIS_SENSORES) {
-                    window.MIS_SENSORES.forEach((sensor) => {
-                        const estadoGuardado = localStorage.getItem(`sasepa_sensor_${sensor.id}`);
-                        if (estadoGuardado === "false" || estadoGuardado === false) {
-                            sensor.activo = false;
-                        }
-                    });
-                }
+
                 const id = datosNormalizados.identificador;
                 ultimaAlertaId = id;
                 lastSyncTime = Date.now();
@@ -1689,27 +1701,6 @@ function detenerAlerta() {
     localStorage.removeItem('atendida');
 }
 
-function verificarSismoPendienteAlCargar() {
-    const guardadoStr = localStorage.getItem('sasepa_sismo_activo_persistente') || localStorage.getItem('sasepa_sismo_en_curso');
-    if (!guardadoStr) return;
-
-    try {
-        const item = JSON.parse(guardadoStr);
-        const transcurridoSegs = (Date.now() - item.timestampRecepcion) / 1000;
-        if (transcurridoSegs < 600) {
-            setTimeout(() => {
-                ejecutarNuevaAlerta(item.datos, false);
-            }, 600);
-        } else {
-            localStorage.removeItem('sasepa_sismo_activo_persistente');
-            localStorage.removeItem('sasepa_sismo_en_curso');
-        }
-    } catch (e) {
-        localStorage.removeItem('sasepa_sismo_activo_persistente');
-        localStorage.removeItem('sasepa_sismo_en_curso');
-    }
-}
-
 function verificarEstadosSistemaAlCargar() {
     if (localStorage.getItem('sasepa_simulacro_activo') === 'true') {
         console.log("🔄 Restaurando cuenta regresiva del simulacro...");
@@ -2216,34 +2207,6 @@ function toggleUI() {
         contador.style.transform = estaOculto ? "translateX(-50%) translateY(-150%)" : "translateX(-50%) translateY(0)";
         contador.style.opacity = estaOculto ? "0" : "1";
     }
-}
-
-function detenerAlerta() {
-    const banner = document.getElementById('alert-container');
-    const bannerBg = document.getElementById('banner-bg');
-    if (window.timeoutCierre) clearTimeout(window.timeoutCierre);
-    if (window.intervaloETA) clearInterval(window.intervaloETA);
-
-    if (banner) banner.style.display = 'none';
-    
-    if (bannerBg) {
-        bannerBg.classList.remove('fuerte-glow', 'moderado-glow');
-    }
-
-    [document.getElementById('sonidoEvento'), document.getElementById('sonidoEventoFuerte')].forEach(s => {
-        if(s) {
-            s.pause();
-            s.currentTime = 0;
-            s.loop = false;
-        }
-    });
-
-    if (ultimaAlertaId) {
-        localStorage.setItem('atendida', ultimaAlertaId);
-    }
-
-    const panicOverlay = document.getElementById('panic-overlay');
-    if (panicOverlay) panicOverlay.remove();
 }
 
 function agregarAlHistorial(ev) {
@@ -3487,7 +3450,6 @@ document.addEventListener('DOMContentLoaded', () => {
     s.onload = () => {
         if(typeof verificarTerminos === 'function') verificarTerminos();
         if(typeof ocultarConteoSimulacroNacional === 'function') ocultarConteoSimulacroNacional(); 
-        verificarSismoPendienteAlCargar();
     };
     document.head.appendChild(s);
 });
